@@ -476,10 +476,24 @@
             document.getElementById('modal-emp-limit').innerText = `${(parseFloat(c.credit_limit) || 0).toLocaleString()} د.ع`;
             document.getElementById('modal-emp-date').innerText = new Date(c.created_at).toLocaleDateString('ar-EG');
 
-            const defaultImg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
-            document.getElementById('modal-kyc-img').src = c.kyc_photo_url || defaultImg;
-            document.getElementById('modal-card-front').src = c.card_front_url || defaultImg;
-            document.getElementById('modal-card-back').src = c.card_back_url || defaultImg;
+         const defaultImg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+            
+            // دالة مساعدة لجلب الرابط العام من Supabase Storage
+            function getFileUrl(path) {
+                if (!path) return defaultImg;
+                if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+                    return path; // إذا كان رابطاً كاملاً مخزناً مسبقاً
+                }
+                if (sb) {
+                    const { data } = sb.storage.from('union-docs').getPublicUrl(path);
+                    return data ? data.publicUrl : defaultImg;
+                }
+                return defaultImg;
+            }
+
+            document.getElementById('modal-kyc-img').src = getFileUrl(c.kyc_photo_url);
+            document.getElementById('modal-card-front').src = getFileUrl(c.card_front_url);
+            document.getElementById('modal-card-back').src = getFileUrl(c.card_back_url);
 
             document.getElementById('audit-modal').classList.remove('hidden');
         }
