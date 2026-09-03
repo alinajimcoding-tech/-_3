@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الإدارة المركزية | اتحاد الغرف التجارية</title>
+    <title>الإدارة المركزية | اتحاد الغرف التجارية (الآمنة)</title>
     <!-- مكتبة Supabase الرسمية -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
@@ -68,13 +68,13 @@
 <body>
 
     <div id="admin-login-screen" class="login-box">
-        <h2 style="font-size: 19px; margin-bottom: 6px; font-weight: 900;">الإدارة المركزية للاتحاد</h2>
+        <h2 style="font-size: 19px; margin-bottom: 6px; font-weight: 900;">الإدارة المركزية للاتحاد (الآمنة)</h2>
         <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 20px;">تسجيل الدخول للمسؤولين وموظفي التدقيق</p>
 
         <input type="email" id="adm-email" class="input-ctrl" placeholder="البريد المهني (gm@union.iq)" value="gm@union.iq">
         <input type="password" id="adm-pass" class="input-ctrl" placeholder="كلمة المرور" value="admin1234">
 
-        <button class="btn-main" onclick="handleLogin()">تسجيل الدخول</button>
+        <button class="btn-main" onclick="handleLogin()">تسجيل الدخول الآمن</button>
     </div>
 
     <div id="admin-main-dash" class="hidden">
@@ -236,17 +236,31 @@
             return supabaseClient;
         }
 
-        function initAdminAccounts() {
-            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts') || '[]');
+        // دالة تشفير SHA-256 للمطابقة الأمنية لكلمات سر المدققين
+        async function hashPin(pin) {
+            const msgBuffer = new TextEncoder().encode(pin);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function sanitizeInput(str) {
+            if (!str) return "";
+            return str.replace(/[<>]/g, "").trim();
+        }
+
+        async function initAdminAccounts() {
+            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
             if (accounts.length === 0) {
+                const defaultHashedPass = await hashPin("admin1234");
                 accounts.push({
                     name: "المدير العام",
                     email: "gm@union.iq",
-                    pass: "admin1234",
+                    pass: defaultHashedPass,
                     role: "gm",
                     isFrozen: false
                 });
-                localStorage.setItem('union_admin_accounts', JSON.stringify(accounts));
+                localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
             }
         }
         initAdminAccounts();
@@ -287,7 +301,7 @@
                 sb.channel('admin-live-updates')
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests' }, payload => {
                         playTone(600, 'sine', 0.25);
-                        showToast(`طلب سقف جديد وارد من المواطن: ${payload.new.name}`, "info");
+                        showToast(`طلب سقف جديد وارد من المواطن: ${sanitizeInput(payload.new.name)}`, "info");
                         loadAdminData();
                     })
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, payload => {
@@ -299,12 +313,18 @@
             }
         }
 
-        function handleLogin() {
-            const email = document.getElementById('adm-email').value.trim().toLowerCase();
+        async function handleLogin() {
+            const email = sanitizeInput(document.getElementById('adm-email').value).toLowerCase();
             const pass = document.getElementById('adm-pass').value.trim();
 
-            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts') || '[]');
-            let user = accounts.find(a => a.email === email && a.pass === pass);
+            if (!email || !pass) {
+                showToast("أدخل البريد الإلكتروني وكلمة المرور", "error");
+                return;
+            }
+
+            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
+            const hashedInputPass = await hashPin(pass);
+            let user = accounts.find(a => a.email === email && a.pass === hashedInputPass);
 
             if (user) {
                 if (user.isFrozen) {
@@ -324,7 +344,7 @@
 
                 initRealtimeAdmin();
                 loadAdminData();
-                showToast("تم تسجيل الدخول بنجاح", "success");
+                showToast("تم تسجيل الدخول الآمن بنجاح", "success");
             } else {
                 showToast("البريد الإلكتروني أو كلمة المرور غير صحيحة", "error");
             }
@@ -352,7 +372,7 @@
                 document.getElementById('kpi-union-fee').innerText = `${(totalSpent * 0.03).toLocaleString()} د.ع`;
                 document.getElementById('kpi-merchants-net').innerText = `${(totalSpent * 0.97).toLocaleString()} د.ع`;
 
-                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts') || '[]');
+                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
                 if (currentActiveUser && currentActiveUser.role === 'gm') {
                     const staffTbody = document.getElementById('staff-table-body');
                     staffTbody.innerHTML = "";
@@ -360,9 +380,9 @@
                         if (acc.email === 'gm@union.iq') return;
                         staffTbody.innerHTML += `
                             <tr>
-                                <td><b>${acc.name}</b></td>
-                                <td>${acc.email}</td>
-                                <td>${acc.role}</td>
+                                <td><b>${sanitizeInput(acc.name)}</b></td>
+                                <td>${sanitizeInput(acc.email)}</td>
+                                <td>${sanitizeInput(acc.role)}</td>
                                 <td><span style="color:${acc.isFrozen ? 'var(--rose)' : 'var(--emerald)'}; font-weight:bold;">${acc.isFrozen ? 'مجمد' : 'نشط'}</span></td>
                                 <td>
                                     <button class="btn-action btn-freeze" onclick="toggleStaffFreeze(${idx})">${acc.isFrozen ? 'تفعيل' : 'تجميد'}</button>
@@ -388,13 +408,13 @@
                         reqTable.innerHTML += `
                             <tr>
                                 <td><b>#${req.id}</b></td>
-                                <td>${req.name}</td>
-                                <td>${req.phone || '-'}</td>
-                                <td>${req.dept}</td>
+                                <td>${sanitizeInput(req.name)}</td>
+                                <td>${sanitizeInput(req.phone || '-')}</td>
+                                <td>${sanitizeInput(req.dept)}</td>
                                 <td>${(parseFloat(req.net_salary) || 0).toLocaleString()} د.ع</td>
                                 <td><b>${(parseFloat(req.credit_limit) || 0).toLocaleString()} د.ع</b></td>
                                 <td>${statusTxt}</td>
-                                <td style="font-size:11px; color:var(--text-sub);">${req.audited_by || 'قيد الانتظار'}</td>
+                                <td style="font-size:11px; color:var(--text-sub);">${sanitizeInput(req.audited_by || 'قيد الانتظار')}</td>
                                 <td>
                                     <button class="btn-action btn-audit" onclick="openAuditModal(${req.id})">تدقيق</button>
                                     ${req.status === 'approved' ? `<button class="btn-action btn-freeze" onclick="toggleFreezeReq(${req.id}, ${req.is_frozen})">${req.is_frozen ? 'إلغاء التجميد' : 'تجميد'}</button>` : ''}
@@ -420,7 +440,7 @@
                         const sName = Object.keys(stores)[i];
                         merTable.innerHTML += `
                             <tr>
-                                <td><b>${sName}</b></td>
+                                <td><b>${sanitizeInput(sName)}</b></td>
                                 <td>${amt.toLocaleString()} د.ع</td>
                                 <td style="color:var(--rose);">- ${(amt * 0.03).toLocaleString()} د.ع</td>
                                 <td style="color:var(--emerald); font-weight:bold;">${(amt * 0.97).toLocaleString()} د.ع</td>
@@ -446,10 +466,10 @@
             if (!c) return;
 
             document.getElementById('modal-emp-id').innerText = "#" + c.id;
-            document.getElementById('modal-emp-name').innerText = c.name;
-            document.getElementById('modal-emp-phone').innerText = c.phone || "-";
-            document.getElementById('modal-emp-dept').innerText = c.dept;
-            document.getElementById('modal-emp-card').innerText = c.card_number || "غير متوفر";
+            document.getElementById('modal-emp-name').innerText = sanitizeInput(c.name);
+            document.getElementById('modal-emp-phone').innerText = sanitizeInput(c.phone || "-");
+            document.getElementById('modal-emp-dept').innerText = sanitizeInput(c.dept);
+            document.getElementById('modal-emp-card').innerText = sanitizeInput(c.card_number || "غير متوفر");
             document.getElementById('modal-emp-gross').innerText = `${(parseFloat(c.gross_salary) || 0).toLocaleString()} د.ع`;
             document.getElementById('modal-emp-deduct').innerText = `${(parseFloat(c.deductions) || 0).toLocaleString()} د.ع`;
             document.getElementById('modal-emp-net').innerText = `${(parseFloat(c.net_salary) || 0).toLocaleString()} د.ع`;
@@ -491,7 +511,7 @@
                         if (sb) {
                             await sb.from('requests').update({
                                 status: 'rejected',
-                                decision_note: reason,
+                                decision_note: sanitizeInput(reason),
                                 audited_by: `${auditorName} (${new Date().toLocaleDateString('ar-EG')})`
                             }).eq('id', currentAuditedId);
                         }
@@ -508,8 +528,8 @@
                         const parsedLimit = parseFloat(newLimit);
                         if (sb) {
                             await sb.from('requests').update({
-                                name: newName,
-                                dept: newDept,
+                                name: sanitizeInput(newName),
+                                dept: sanitizeInput(newDept),
                                 credit_limit: parsedLimit,
                                 balance: parsedLimit,
                                 audited_by: `${auditorName} [تعديل]`
@@ -552,7 +572,7 @@
                     let gross = stores[st];
                     let fee = gross * 0.03;
                     let net = gross * 0.97;
-                    csvContent += `"${st}",${gross},${fee},${net}\n`;
+                    csvContent += `"${sanitizeInput(st)}",${gross},${fee},${net}\n`;
                 });
 
                 const encodedUri = encodeURI(csvContent);
@@ -581,36 +601,45 @@
             }
         }
 
-        function showNewStaffModal() {
+        async function showNewStaffModal() {
             let name = prompt("اسم الموظف:");
             let email = prompt("البريد الإلكتروني:");
-            let pass = prompt("كلمة المرور:");
+            let pass = prompt("كلمة المرور (6 خانات على الأقل):");
             let role = prompt("الدور (معاون / مدقق):", "مدقق");
 
             if (name && email && pass) {
-                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts') || '[]');
-                accounts.push({ name, email: email.toLowerCase(), pass, role, isFrozen: false });
-                localStorage.setItem('union_admin_accounts', JSON.stringify(accounts));
-                showToast("تمت إضافة حساب الموظف بنجاح", "success");
+                if (pass.length < 6) {
+                    showToast("كلمة المرور قصيرة جداً", "error");
+                    return;
+                }
+                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
+                const hashedPass = await hashPin(pass);
+                accounts.push({ name: sanitizeInput(name), email: sanitizeInput(email).toLowerCase(), pass: hashedPass, role: sanitizeInput(role), isFrozen: false });
+                localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
+                showToast("تمت إضافة حساب الموظف الآمن بنجاح", "success");
                 loadAdminData();
             }
         }
 
         function toggleStaffFreeze(idx) {
-            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts') || '[]');
+            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
             accounts[idx].isFrozen = !accounts[idx].isFrozen;
-            localStorage.setItem('union_admin_accounts', JSON.stringify(accounts));
+            localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
             showToast("تم تحديث حالة حساب الموظف", "info");
             loadAdminData();
         }
 
-        function changeStaffPass(idx) {
+        async function changeStaffPass(idx) {
             let newP = prompt("أدخل كلمة المرور الجديدة للموظف:");
             if (newP) {
-                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts') || '[]');
-                accounts[idx].pass = newP;
-                localStorage.setItem('union_admin_accounts', JSON.stringify(accounts));
-                showToast("تم تحديث كلمة المرور بنجاح", "success");
+                if (newP.length < 6) {
+                    showToast("كلمة المرور قصيرة جداً", "error");
+                    return;
+                }
+                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
+                accounts[idx].pass = await hashPin(newP);
+                localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
+                showToast("تم تحديث كلمة المرور المشفرة بنجاح", "success");
                 loadAdminData();
             }
         }
