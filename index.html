@@ -483,14 +483,14 @@
             
             // دالة جلب الرابط العام بشكل صحيح
           // توليد الرابط العام مباشرة من أعمدة قاعدة البيانات المتاحة
+         // توليد الرابط العام مباشرة بشكل نصي مضمون لتجنب قيود الـ CORS والـ File Protocol
             const getDirectUrl = (path) => {
                 if (!path) return defaultImg;
                 if (path.startsWith('http')) return path;
-                const { data } = sb.storage.from('union-docs').getPublicUrl(path);
-                return data ? data.publicUrl : defaultImg;
+                // رابط جلب الملفات المباشر من Supabase Storage
+                return `https://fttknbkhepebbavczwgb.supabase.co/storage/v1/object/public/union-docs/${path}`;
             };
 
-            // فحص الأعمدة الثلاثة المحتملة لكل صورة لتجاوز اختلاف التسميات
             document.getElementById('modal-kyc-img').src = getDirectUrl(c.kyc_photo || c.kyc_photo_url);
             document.getElementById('modal-card-front').src = getDirectUrl(c.card_front || c.card_front_url || c.front_image);
             document.getElementById('modal-card-back').src = getDirectUrl(c.card_back || c.card_back_url || c.back_image);
