@@ -20,56 +20,69 @@
             --rose: #f43f5e;
             --amber: #f59e0b;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; }
-        body { background: var(--bg); color: var(--text-main); line-height: 1.5; padding: 24px; min-height: 100vh; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; transition: 0.2s; }
+        body { background: var(--bg); color: var(--text-main); line-height: 1.5; padding: 12px; min-height: 100vh; overflow-x: hidden; display: flex; flex-direction: column; }
         .hidden { display: none !important; }
 
-        .login-box { max-width: 400px; margin: 80px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 32px; text-align: center; box-shadow: 0 16px 36px rgba(0,0,0,0.4); }
-        .input-ctrl { width: 100%; padding: 11px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; color: var(--text-main); font-size: 13px; margin-bottom: 12px; outline: none; }
+        .login-box { max-width: 400px; width: 100%; margin: 60px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 16px 36px rgba(0,0,0,0.4); }
+        .input-ctrl { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 12px; margin-bottom: 12px; outline: none; }
         .input-ctrl:focus { border-color: var(--primary); }
-        .btn-main { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 9px; font-size: 14px; font-weight: 800; cursor: pointer; }
+        .btn-main { width: 100%; padding: 11px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; }
 
-        .admin-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-        .user-tag { background: var(--surface-card); border: 1px solid var(--border); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 800; color: var(--primary); }
+        .admin-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface); border-radius: 12px; flex-wrap: wrap; gap: 10px; }
+        .user-tag { background: var(--surface-card); border: 1px solid var(--border); padding: 5px 10px; border-radius: 16px; font-size: 11px; font-weight: 800; color: var(--primary); }
 
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .kpi-card { background: var(--surface); border: 1px solid var(--border); padding: 18px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-        .kpi-card span { font-size: 12px; color: var(--text-sub); display: block; margin-bottom: 4px; font-weight: 700; }
-        .kpi-card b { font-size: 20px; font-weight: 900; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .kpi-card { background: var(--surface); border: 1px solid var(--border); padding: 14px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .kpi-card span { font-size: 11px; color: var(--text-sub); display: block; margin-bottom: 4px; font-weight: 700; }
+        .kpi-card b { font-size: 18px; font-weight: 900; }
 
-        .table-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 24px; }
-        .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { padding: 11px; text-align: start; border-bottom: 1px solid var(--border); }
+        .table-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+        .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .panel-head h3 { font-size: 14px; font-weight: 800; }
+        
+        /* لف الجدول ليكون متجاوباً وقابلاً للتمرير الأفقي بسلاسة */
+        .table-responsive { width: 100%; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+        th, td { padding: 8px 10px; text-align: start; border-bottom: 1px solid var(--border); }
         th { color: var(--text-sub); background: var(--surface-card); font-weight: 700; }
 
-        .btn-action { padding: 5px 12px; border-radius: 7px; font-size: 11px; font-weight: 800; cursor: pointer; border: none; }
+        .btn-action { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; border: none; }
         .btn-audit { background: var(--primary); color: #fff; }
         .btn-freeze { background: rgba(245, 158, 11, 0.2); color: var(--amber); border: 1px solid var(--amber); }
-        .btn-export { background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .btn-export { background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
 
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; max-width: 650px; width: 92%; padding: 24px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        .audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-        .audit-item { background: var(--bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border); text-align: start; }
-        .audit-item span { font-size: 11px; color: var(--text-sub); display: block; font-weight: 700; }
-        .audit-item b { font-size: 13px; color: var(--text-main); }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
+        .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; max-width: 600px; width: 100%; padding: 18px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+        .audit-item { background: var(--bg); padding: 8px; border-radius: 6px; border: 1px solid var(--border); text-align: start; }
+        .audit-item span { font-size: 10px; color: var(--text-sub); display: block; font-weight: 700; }
+        .audit-item b { font-size: 12px; color: var(--text-main); }
         
-        .img-preview-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; text-align: center; }
-        .img-preview-group img { width: 100%; height: 95px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
-        .img-preview-group span { font-size: 11px; color: var(--text-sub); display: block; margin-top: 4px; font-weight: 700; }
+        .img-preview-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; text-align: center; }
+        .img-preview-group img { width: 100%; height: 85px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+        .img-preview-group span { font-size: 10px; color: var(--text-sub); display: block; margin-top: 3px; font-weight: 700; }
 
-        .toast-container { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
-        .toast { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 700; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 6px; width: 90%; max-width: 400px; }
+        .toast { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); padding: 10px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; box-shadow: 0 8px 25px rgba(0,0,0,0.5); text-align: center; }
         .toast.success { border-color: var(--emerald); color: var(--emerald); }
         .toast.error { border-color: var(--rose); color: var(--rose); }
+
+        @media screen and (min-width: 768px) {
+            body { padding: 20px; }
+            .login-box { max-width: 400px; padding: 30px; }
+            .admin-nav { padding: 16px 24px; }
+            .table-panel { padding: 20px; }
+            .modal-content { padding: 24px; }
+            .img-preview-group img { height: 95px; }
+        }
     </style>
 </head>
 <body>
 
     <div id="admin-login-screen" class="login-box">
-        <h2 style="font-size: 19px; margin-bottom: 6px; font-weight: 900;">الإدارة المركزية للاتحاد (الآمنة)</h2>
-        <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 20px;">تسجيل الدخول للمسؤولين وموظفي التدقيق</p>
+        <h2 style="font-size: 17px; margin-bottom: 4px; font-weight: 900;">الإدارة المركزية للاتحاد (الآمنة)</h2>
+        <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 16px;">تسجيل الدخول للمسؤولين وموظفي التدقيق</p>
 
         <input type="email" id="adm-email" class="input-ctrl" placeholder="البريد المهني (gm@union.iq)" value="gm@union.iq">
         <input type="password" id="adm-pass" class="input-ctrl" placeholder="كلمة المرور" value="admin1234">
@@ -80,10 +93,10 @@
     <div id="admin-main-dash" class="hidden">
         <div class="admin-nav">
             <div>
-                <h1 style="font-size: 17px; font-weight: 900;">لوحة التحكم والتدقيق والمقاصة المركزية</h1>
-                <span style="font-size: 12px; color: var(--text-sub);">اتحاد الغرف التجارية والتجار</span>
+                <h1 style="font-size: 15px; font-weight: 900;">لوحة التحكم والتدقيق والمقاصة المركزية</h1>
+                <span style="font-size: 11px; color: var(--text-sub);">اتحاد الغرف التجارية والتجار</span>
             </div>
-            <div style="display:flex; gap:10px; align-items:center;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <div class="user-tag">
                     <span id="adm-welcome-text">المدير العام</span>
                 </div>
@@ -116,18 +129,20 @@
                 <h3>إدارة حسابات موظفي الاتحاد والصلاحيات</h3>
                 <button class="btn-export" onclick="showNewStaffModal()">+ إضافة حساب موظف</button>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>الاسم الكامل</th>
-                        <th>البريد الإلكتروني</th>
-                        <th>الدور الوظيفي</th>
-                        <th>الحالة</th>
-                        <th>الإجراءات</th>
-                    </tr>
-                </thead>
-                <tbody id="staff-table-body"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الاسم الكامل</th>
+                            <th>البريد الإلكتروني</th>
+                            <th>الدور الوظيفي</th>
+                            <th>الحالة</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staff-table-body"></tbody>
+                </table>
+            </div>
         </div>
 
         <!-- جدول تدقيق الطلبات وسجل المراجعين -->
@@ -136,22 +151,24 @@
                 <h3>صندوق تدقيق طلبات المواطنين واعتماد الهويات</h3>
                 <button class="btn-export" onclick="loadAdminData()">تحديث البيانات</button>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>رقم الطلب</th>
-                        <th>اسم الموظف</th>
-                        <th>رقم الهاتف</th>
-                        <th>الدائرة الحكومية</th>
-                        <th>صافي الراتب</th>
-                        <th>السقف الممنوح</th>
-                        <th>الحالة</th>
-                        <th>المدقق المسؤول</th>
-                        <th>قرار التدقيق</th>
-                    </tr>
-                </thead>
-                <tbody id="requests-table-body"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>رقم الطلب</th>
+                            <th>اسم الموظف</th>
+                            <th>رقم الهاتف</th>
+                            <th>الدائرة الحكومية</th>
+                            <th>صافي الراتب</th>
+                            <th>السقف الممنوح</th>
+                            <th>الحالة</th>
+                            <th>المدقق المسؤول</th>
+                            <th>قرار التدقيق</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requests-table-body"></tbody>
+                </table>
+            </div>
         </div>
 
         <!-- جدول تسويات المتاجر مع تصدير Excel -->
@@ -160,25 +177,27 @@
                 <h3>كشف التسويات الدورية للمتاجر ونقاط البيع</h3>
                 <button class="btn-export" onclick="exportSettlementsExcel()">تصدير كشف المقاصة (Excel / CSV)</button>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>اسم المنشأة / السوبرماركت</th>
-                        <th>إجمالي المبيعات</th>
-                        <th>عمولة الاتحاد (3%)</th>
-                        <th>صافي المستحق للتاجر</th>
-                        <th>حالة المقاصة</th>
-                    </tr>
-                </thead>
-                <tbody id="merchants-table-body"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>اسم المنشأة / السوبرماركت</th>
+                            <th>إجمالي المبيعات</th>
+                            <th>عمولة الاتحاد (3%)</th>
+                            <th>صافي المستحق للتاجر</th>
+                            <th>حالة المقاصة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="merchants-table-body"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <!-- نافذة التدقيق التفصيلي -->
     <div id="audit-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <h3 style="font-size: 16px; margin-bottom: 14px; text-align: center; font-weight: 800;">تفاصيل وتدقيق طلب المواطن</h3>
+            <h3 style="font-size: 15px; margin-bottom: 12px; text-align: center; font-weight: 800;">تفاصيل وتدقيق طلب المواطن</h3>
             
             <div class="img-preview-group">
                 <div>
@@ -208,11 +227,11 @@
                 <div class="audit-item"><span>تاريخ التقديم:</span><b id="modal-emp-date">-</b></div>
             </div>
 
-            <div style="display: flex; gap: 8px; margin-top: 16px;">
-                <button class="btn-main" style="background:var(--emerald);" onclick="modalDecision('accept')">قبول واعتماد</button>
-                <button class="btn-main" style="background:var(--rose);" onclick="modalDecision('reject')">رفض الطلب</button>
-                <button class="btn-main" style="background:var(--primary);" onclick="modalDecision('edit')">تعديل البيانات</button>
-                <button class="btn-main" style="background:var(--surface-card); color:var(--text-main); border:1px solid var(--border);" onclick="closeAuditModal()">إغلاق</button>
+            <div style="display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap;">
+                <button class="btn-main" style="background:var(--emerald); flex: 1; padding: 10px;" onclick="modalDecision('accept')">قبول واعتماد</button>
+                <button class="btn-main" style="background:var(--rose); flex: 1; padding: 10px;" onclick="modalDecision('reject')">رفض الطلب</button>
+                <button class="btn-main" style="background:var(--primary); flex: 1; padding: 10px;" onclick="modalDecision('edit')">تعديل البيانات</button>
+                <button class="btn-main" style="background:var(--surface-card); color:var(--text-main); border:1px solid var(--border); flex: 1; padding: 10px;" onclick="closeAuditModal()">إغلاق</button>
             </div>
         </div>
     </div>
@@ -236,7 +255,6 @@
             return supabaseClient;
         }
 
-        // دالة تشفير SHA-256 للمطابقة الأمنية لكلمات سر المدققين
         async function hashPin(pin) {
             const msgBuffer = new TextEncoder().encode(pin);
             const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -465,9 +483,6 @@
             }
             if (!c) return;
 
-            // أضف سطر الفحص هذا هنا لمعرفة شكل الرابط في الـ Console
-            console.log("بيانات الطلب المسترجعة:", c);
-
             document.getElementById('modal-emp-id').innerText = "#" + c.id;
             document.getElementById('modal-emp-name').innerText = sanitizeInput(c.name);
             document.getElementById('modal-emp-phone').innerText = sanitizeInput(c.phone || "-");
@@ -481,13 +496,9 @@
 
             const defaultImg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
             
-            // دالة جلب الرابط العام بشكل صحيح
-          // توليد الرابط العام مباشرة من أعمدة قاعدة البيانات المتاحة
-         // توليد الرابط العام مباشرة بشكل نصي مضمون لتجنب قيود الـ CORS والـ File Protocol
             const getDirectUrl = (path) => {
                 if (!path) return defaultImg;
                 if (path.startsWith('http')) return path;
-                // رابط جلب الملفات المباشر من Supabase Storage
                 return `https://fttknbkhepebbavczwgb.supabase.co/storage/v1/object/public/union-docs/${path}`;
             };
 
@@ -496,6 +507,7 @@
             document.getElementById('modal-card-back').src = getDirectUrl(c.card_back || c.card_back_url || c.back_image);
             document.getElementById('audit-modal').classList.remove('hidden');
         }
+
         function closeAuditModal() {
             document.getElementById('audit-modal').classList.add('hidden');
             currentAuditedId = null;
