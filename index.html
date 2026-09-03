@@ -494,9 +494,9 @@
                 return defaultImg;
             }
 
-            document.getElementById('modal-kyc-img').src = getFileUrl(c.kyc_photo_url);
-            document.getElementById('modal-card-front').src = getFileUrl(c.card_front_url);
-            document.getElementById('modal-card-back').src = getFileUrl(c.card_back_url);
+         document.getElementById('modal-kyc-img').src = getFileUrl(c.kyc_photo);
+            document.getElementById('modal-card-front').src = getFileUrl(c.card_front);
+            document.getElementById('modal-card-back').src = getFileUrl(c.card_back);
 
             document.getElementById('audit-modal').classList.remove('hidden');
         }
