@@ -49,6 +49,7 @@
         .btn-action { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; border: none; }
         .btn-audit { background: var(--primary); color: #fff; }
         .btn-freeze { background: rgba(245, 158, 11, 0.2); color: var(--amber); border: 1px solid var(--amber); }
+        .btn-danger { background: rgba(244, 63, 94, 0.2); color: var(--rose); border: 1px solid var(--rose); }
         .btn-export { background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
@@ -122,11 +123,11 @@
             </div>
         </div>
 
-        <!-- إدارة الكادر -->
+        <!-- إدارة الكادر (الموظفين والأدمن) -->
         <div id="gm-management-panel" class="table-panel hidden">
             <div class="panel-head">
-                <h3>إدارة حسابات موظفي الاتحاد والصلاحيات</h3>
-                <button class="btn-export" onclick="showNewStaffModal()">+ إضافة حساب موظف</button>
+                <h3>إدارة حسابات موظفي الاتحاد والأدمن والصلاحيات</h3>
+                <button class="btn-export" onclick="showNewStaffModal()">+ إضافة حساب أدمن / موظف جديد</button>
             </div>
             <div class="table-responsive">
                 <table>
@@ -147,7 +148,7 @@
         <!-- جدول تدقيق الطلبات وسجل المراجعين -->
         <div class="table-panel">
             <div class="panel-head">
-                <h3>صندوق تدقيق طلبات المواطنين واعتماد الهويات</h3>
+                <h3>صندوق تدقيق طلبات المواطنين وإدارة الحسابات</h3>
                 <div style="display:flex; gap:8px; align-items:center;">
                     <input type="text" id="search-admin-reqs" class="input-ctrl" placeholder="بحث باسم الموظف أو رقم الطلب..." style="margin-bottom:0; width:220px;" oninput="filterAdminRequestsLocally()">
                     <button class="btn-export" onclick="loadAdminData()">تحديث البيانات</button>
@@ -165,10 +166,33 @@
                             <th>السقف الممنوح</th>
                             <th>الحالة</th>
                             <th>المدقق المسؤول</th>
-                            <th>قرار التدقيق</th>
+                            <th>قرار التدقيق والإدارة</th>
                         </tr>
                     </thead>
                     <tbody id="requests-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- جدول إدارة المتاجر (التجار) مع إمكانية الإضافة والحذف -->
+        <div class="table-panel">
+            <div class="panel-head">
+                <h3>إدارة المتاجر ونقاط البيع المعتمدة</h3>
+                <button class="btn-export" onclick="showNewMerchantModal()">+ إضافة تاجر جديد يدوياً</button>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>اسم المنشأة</th>
+                            <th>رقم الهاتف</th>
+                            <th>العنوان</th>
+                            <th>النشاط</th>
+                            <th>إجمالي المبيعات</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-stores-table-body"></tbody>
                 </table>
             </div>
         </div>
@@ -294,8 +318,8 @@
         let currentActiveUser = null;
         let currentAuditedId = null;
         let cachedAdminRequests = [];
+        let cachedAdminStores = [];
 
-        // متغيرات حماية التخمين (Rate Limiting & Lockout للإدارة)
         let loginAttempts = 0;
         let lockoutUntil = 0;
 
@@ -348,11 +372,11 @@
             const now = Date.now();
             if (now < lockoutUntil) {
                 const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
-                showToast(`تم حظر المحاولات مؤقتاً بسبب التخمين المتكرر. يرجى الانتظار ${remainingSec} ثانية.`, "error");
+                showToast(`تم حظر المحاولات مؤقتاً. يرجى الانتظار ${remainingSec} ثانية.`, "error");
                 return;
             }
 
-            const email = sanitizeInput(document.getElementById('adm-email').value).toLowerCase();
+            const email = sanitizeInput(document.getElementById('adm-email').value).toLowerCase().trim();
             const pass = document.getElementById('adm-pass').value.trim();
 
             if (!email || !pass) {
@@ -362,7 +386,7 @@
 
             let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
             const hashedInputPass = await hashPin(pass);
-            let user = accounts.find(a => a.email === email && a.pass === hashedInputPass);
+            let user = accounts.find(a => a.email.toLowerCase().trim() === email && a.pass === hashedInputPass);
 
             const sb = getSupabase();
 
@@ -372,15 +396,17 @@
                     return;
                 }
                 loginAttempts = 0;
+                lockoutUntil = 0;
                 currentActiveUser = user;
 
-                // توثيق تسجيل الدخول في سجلات التدقيق
                 if (sb) {
-                    await sb.from('audit_logs').insert([{
-                        action_type: 'SUCCESSFUL_ADMIN_LOGIN',
-                        description: `تم تسجيل دخول المسؤول: ${user.name} (${user.email}) بنجاح`,
-                        created_at: new Date().toISOString()
-                    }]).catch(()=>{});
+                    try {
+                        await sb.from('audit_logs').insert([{
+                            action_type: 'SUCCESSFUL_ADMIN_LOGIN',
+                            description: `تم تسجيل دخول المسؤول: ${user.name} (${user.email}) بنجاح`,
+                            created_at: new Date().toISOString()
+                        }]);
+                    } catch(e){}
                 }
 
                 document.getElementById('adm-welcome-text').innerText = user.role === 'gm' ? "المدير العام" : user.name;
@@ -399,19 +425,21 @@
             } else {
                 loginAttempts++;
                 if (loginAttempts >= 3) {
-                    lockoutUntil = Date.now() + 30000; // حظر 30 ثانية
+                    lockoutUntil = Date.now() + 30000;
                     loginAttempts = 0;
-                    showToast("تم إدخال بيانات خاطئة 3 مرات متتالية. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
+                    showToast("تم إدخال بيانات خاطئة 3 مرات. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
                 } else {
                     showToast(`البريد أو كلمة المرور غير صحيحة. المحاولة ${loginAttempts} من 3`, "error");
                 }
 
                 if (sb) {
-                    await sb.from('audit_logs').insert([{
-                        action_type: 'FAILED_ADMIN_LOGIN',
-                        description: `محاولة دخول إداري فاشلة للبريد: ${email}`,
-                        created_at: new Date().toISOString()
-                    }]).catch(()=>{});
+                    try {
+                        await sb.from('audit_logs').insert([{
+                            action_type: 'FAILED_ADMIN_LOGIN',
+                            description: `محاولة دخول إداري فاشلة للبريد: ${email}`,
+                            created_at: new Date().toISOString()
+                        }]);
+                    } catch(e){}
                 }
             }
         }
@@ -421,16 +449,20 @@
             try {
                 let requests = [];
                 let transactions = [];
+                let stores = [];
 
                 if (sb) {
                     const { data: reqData } = await sb.from('requests').select('*').order('created_at', { ascending: false });
                     const { data: txData } = await sb.from('transactions').select('*').order('created_at', { ascending: false });
+                    const { data: storeData } = await sb.from('stores').select('*').order('created_at', { ascending: false });
                     if (reqData) requests = reqData;
                     if (txData) transactions = txData;
+                    if (storeData) stores = storeData;
                 }
 
                 cachedAdminRequests = requests;
-                displayFilteredAdminRequests(cachedAdminRequests, transactions);
+                cachedAdminStores = stores;
+                displayFilteredAdminRequests(cachedAdminRequests, transactions, cachedAdminStores);
 
                 let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
                 if (currentActiveUser && currentActiveUser.role === 'gm') {
@@ -447,6 +479,7 @@
                                 <td>
                                     <button class="btn-action btn-freeze" onclick="toggleStaffFreeze(${idx})">${acc.isFrozen ? 'تفعيل' : 'تجميد'}</button>
                                     <button class="btn-action btn-audit" onclick="changeStaffPass(${idx})">تغيير السر</button>
+                                    <button class="btn-action btn-danger" onclick="deleteStaffAccount(${idx})">حذف</button>
                                 </td>
                             </tr>
                         `;
@@ -457,8 +490,7 @@
             }
         }
 
-        // دالة عرض الطلبات مع محرك البحث الذكي الآمن محلياً
-        function displayFilteredAdminRequests(requests, transactions = []) {
+        function displayFilteredAdminRequests(requests, transactions = [], stores = []) {
             const reqTable = document.getElementById('requests-table-body');
             if (!reqTable) return;
             const query = (document.getElementById('search-admin-reqs').value || "").toLowerCase().trim();
@@ -503,27 +535,53 @@
                             <td>
                                 <button class="btn-action btn-audit" onclick="openAuditModal(${req.id})">تدقيق</button>
                                 ${req.status === 'approved' ? `<button class="btn-action btn-freeze" onclick="toggleFreezeReq(${req.id}, ${req.is_frozen})">${req.is_frozen ? 'إلغاء التجميد' : 'تجميد'}</button>` : ''}
+                                <button class="btn-action btn-danger" onclick="deleteCitizenRequest('${req.id}', '${req.phone}')">حذف</button>
                             </td>
                         </tr>
                     `;
                 });
             }
 
-            // تحديث جدول تسويات المتاجر أيضاً
+            // عرض وإدارة المتاجر (التجار)
+            const storesTable = document.getElementById('admin-stores-table-body');
+            if (storesTable) {
+                storesTable.innerHTML = "";
+                if (stores.length === 0) {
+                    storesTable.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-sub);">لا توجد متاجر مسجلة حالياً</td></tr>`;
+                } else {
+                    stores.forEach(st => {
+                        let stSales = activeTxs.filter(t => t.store_name === st.name).reduce((acc, t) => acc + parseFloat(t.amount), 0);
+                        storesTable.innerHTML += `
+                            <tr>
+                                <td><b>${sanitizeInput(st.name)}</b></td>
+                                <td>${sanitizeInput(st.phone || '-')}</td>
+                                <td>${sanitizeInput(st.address || '-')}</td>
+                                <td>${sanitizeInput(st.products || '-')}</td>
+                                <td style="color:var(--emerald); font-weight:bold;">${stSales.toLocaleString()} د.ع</td>
+                                <td>
+                                    <button class="btn-action btn-danger" onclick="deleteMerchantStore('${st.id}', '${st.name}')">حذف المتجر</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+            }
+
+            // تحديث جدول تسويات المتاجر
             const merTable = document.getElementById('merchants-table-body');
             if (merTable) {
                 merTable.innerHTML = "";
                 if (activeTxs.length === 0) {
                     merTable.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-sub);">لا توجد حركات مبيعات مسجلة</td></tr>`;
                 } else {
-                    let stores = {};
+                    let storeTotals = {};
                     activeTxs.forEach(t => {
-                        if (!stores[t.store_name]) stores[t.store_name] = 0;
-                        stores[t.store_name] += parseFloat(t.amount);
+                        if (!storeTotals[t.store_name]) storeTotals[t.store_name] = 0;
+                        storeTotals[t.store_name] += parseFloat(t.amount);
                     });
 
-                    Object.values(stores).forEach((amt, i) => {
-                        const sName = Object.keys(stores)[i];
+                    Object.values(storeTotals).forEach((amt, i) => {
+                        const sName = Object.keys(storeTotals)[i];
                         merTable.innerHTML += `
                             <tr>
                                 <td><b>${sanitizeInput(sName)}</b></td>
@@ -539,8 +597,7 @@
         }
 
         function filterAdminRequestsLocally() {
-            const sb = getSupabase();
-            loadAdminData(); // إعادة جلب وتحديث الفلتر محلياً
+            loadAdminData();
         }
 
         async function openAuditModal(reqId) {
@@ -597,12 +654,13 @@
                             audited_by: `${auditorName} (${new Date().toLocaleDateString('ar-EG')})`
                         }).eq('id', currentAuditedId);
 
-                        // توثيق العملية في جدول سجلات التدقيق (Audit Trail Logs)
-                        await sb.from('audit_logs').insert([{
-                            action_type: 'APPROVE_REQUEST',
-                            description: `قام المسؤول ${auditorName} بقبول واعتماد طلب المواطن برقم #${currentAuditedId}`,
-                            created_at: new Date().toISOString()
-                        }]).catch(()=>{});
+                        try {
+                            await sb.from('audit_logs').insert([{
+                                action_type: 'APPROVE_REQUEST',
+                                description: `قام المسؤول ${auditorName} بقبول واعتماد طلب المواطن برقم #${currentAuditedId}`,
+                                created_at: new Date().toISOString()
+                            }]);
+                        } catch(e){}
                     }
                     showToast("تم اعتماد طلب المواطن وتفعيل الهوية بنجاح", "success");
                     closeAuditModal();
@@ -617,11 +675,13 @@
                                 audited_by: `${auditorName} (${new Date().toLocaleDateString('ar-EG')})`
                             }).eq('id', currentAuditedId);
 
-                            await sb.from('audit_logs').insert([{
-                                action_type: 'REJECT_REQUEST',
-                                description: `قام المسؤول ${auditorName} برفض الطلب #${currentAuditedId}. السبب: ${sanitizeInput(reason)}`,
-                                created_at: new Date().toISOString()
-                            }]).catch(()=>{});
+                            try {
+                                await sb.from('audit_logs').insert([{
+                                    action_type: 'REJECT_REQUEST',
+                                    description: `قام المسؤول ${auditorName} برفض الطلب #${currentAuditedId}. السبب: ${sanitizeInput(reason)}`,
+                                    created_at: new Date().toISOString()
+                                }]);
+                            } catch(e){}
                         }
                         showToast("تم رفض الطلب وتوثيق السبب", "error");
                         closeAuditModal();
@@ -643,11 +703,13 @@
                                 audited_by: `${auditorName} [تعديل]`
                             }).eq('id', currentAuditedId);
 
-                            await sb.from('audit_logs').insert([{
-                                action_type: 'EDIT_REQUEST',
-                                description: `قام المسؤول ${auditorName} بتعديل بيانات الطلب #${currentAuditedId}`,
-                                created_at: new Date().toISOString()
-                            }]).catch(()=>{});
+                            try {
+                                await sb.from('audit_logs').insert([{
+                                    action_type: 'EDIT_REQUEST',
+                                    description: `قام المسؤول ${auditorName} بتعديل بيانات الطلب #${currentAuditedId}`,
+                                    created_at: new Date().toISOString()
+                                }]);
+                            } catch(e){}
                         }
                         showToast("تم حفظ التعديلات بنجاح", "success");
                         closeAuditModal();
@@ -656,6 +718,73 @@
                 }
             } catch(e) {
                 showToast(`خطأ في الإجراء: ${e.message}`, "error");
+            }
+        }
+
+        // حذف طلب وحساب المواطن نهائياً
+        async function deleteCitizenRequest(reqId, citizenPhone) {
+            if (!confirm(`هل أنت متأكد من حذف الطلب #${reqId} وحساب المواطن المرتبط به نهائياً؟`)) return;
+            const sb = getSupabase();
+            try {
+                if (sb) {
+                    await sb.from('requests').delete().eq('id', reqId);
+                    if (citizenPhone && citizenPhone !== '-') {
+                        await sb.from('citizens').delete().eq('phone', citizenPhone);
+                    }
+                }
+                showToast("تم حذف الطلب وحساب المواطن بنجاح", "success");
+                loadAdminData();
+            } catch(e) {
+                showToast(`تعذر الحذف: ${e.message}`, "error");
+            }
+        }
+
+        // إضافة تاجر جديد يدوياً من لوحة الأدمن
+        async function showNewMerchantModal() {
+            let name = prompt("اسم المنشأة التجارية / السوبرماركت:");
+            let phone = prompt("رقم الهاتف:");
+            let address = prompt("العنوان بالتفصيل:");
+            let products = prompt("النشاط / المنتجات:");
+            let pass = prompt("كلمة المرور (6 خانات على الأقل):");
+
+            if (name && pass) {
+                if (pass.length < 6) {
+                    showToast("كلمة المرور قصيرة جداً", "error");
+                    return;
+                }
+                const sb = getSupabase();
+                try {
+                    const hashedPass = await hashPin(pass);
+                    if (sb) {
+                        const { error } = await sb.from('stores').insert([{
+                            name: sanitizeInput(name),
+                            phone: sanitizeInput(phone),
+                            address: sanitizeInput(address),
+                            products: sanitizeInput(products),
+                            password: hashedPass
+                        }]);
+                        if (error) throw error;
+                    }
+                    showToast("تمت إضافة التاجر بنجاح", "success");
+                    loadAdminData();
+                } catch(e) {
+                    showToast(`خطأ في إضافة التاجر: ${e.message}`, "error");
+                }
+            }
+        }
+
+        // حذف تاجر نهائياً
+        async function deleteMerchantStore(storeId, storeName) {
+            if (!confirm(`هل أنت متأكد من حذف المتجر "${storeName}" نهائياً من النظام؟`)) return;
+            const sb = getSupabase();
+            try {
+                if (sb) {
+                    await sb.from('stores').delete().eq('id', storeId);
+                }
+                showToast("تم حذف المتجر بنجاح", "success");
+                loadAdminData();
+            } catch(e) {
+                showToast(`تعذر حذف المتجر: ${e.message}`, "error");
             }
         }
 
@@ -716,10 +845,10 @@
         }
 
         async function showNewStaffModal() {
-            let name = prompt("اسم الموظف:");
+            let name = prompt("اسم الموظف / الأدمن:");
             let email = prompt("البريد الإلكتروني:");
             let pass = prompt("كلمة المرور (6 خانات على الأقل):");
-            let role = prompt("الدور (معاون / مدقق):", "مدقق");
+            let role = prompt("الدور (معاون / مدقق / أدمن):", "مدقق");
 
             if (name && email && pass) {
                 if (pass.length < 6) {
@@ -728,9 +857,9 @@
                 }
                 let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
                 const hashedPass = await hashPin(pass);
-                accounts.push({ name: sanitizeInput(name), email: sanitizeInput(email).toLowerCase(), pass: hashedPass, role: sanitizeInput(role), isFrozen: false });
+                accounts.push({ name: sanitizeInput(name), email: sanitizeInput(email).toLowerCase().trim(), pass: hashedPass, role: sanitizeInput(role), isFrozen: false });
                 localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
-                showToast("تمت إضافة حساب الموظف الآمن بنجاح", "success");
+                showToast("تمت إضافة حساب الموظف/الأدمن بنجاح", "success");
                 loadAdminData();
             }
         }
@@ -756,6 +885,16 @@
                 showToast("تم تحديث كلمة المرور المشفرة بنجاح", "success");
                 loadAdminData();
             }
+        }
+
+        // حذف حساب الموظف/الأدمن
+        function deleteStaffAccount(idx) {
+            if (!confirm("هل أنت متأكد من حذف حساب هذا الموظف/الأدمن نهائياً؟")) return;
+            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
+            accounts.splice(idx, 1);
+            localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
+            showToast("تم حذف حساب الموظف بنجاح", "success");
+            loadAdminData();
         }
 
         function logoutAdmin() {
