@@ -50,6 +50,7 @@
         .btn-audit { background: var(--primary); color: #fff; }
         .btn-freeze { background: rgba(245, 158, 11, 0.2); color: var(--amber); border: 1px solid var(--amber); }
         .btn-danger { background: rgba(244, 63, 94, 0.2); color: var(--rose); border: 1px solid var(--rose); }
+        .btn-info { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid var(--emerald); }
         .btn-export { background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
@@ -220,7 +221,7 @@
         </div>
     </div>
 
-    <!-- نافذة التدقيق التفصيلي -->
+    <!-- نافذة التدقيق التفصيلي لطلبات المواطنين -->
     <div id="audit-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 style="font-size: 15px; margin-bottom: 12px; text-align: center; font-weight: 800;">تفاصيل وتدقيق طلب المواطن</h3>
@@ -262,6 +263,23 @@
         </div>
     </div>
 
+    <!-- نافذة الاطلاع على معلومات حساب الموظف / الأدمن -->
+    <div id="staff-info-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 420px; text-align: start;">
+            <h3 style="font-size: 15px; margin-bottom: 14px; text-align: center; font-weight: 800; color: var(--primary);">معلومات حساب الموظف / الأدمن</h3>
+            
+            <div class="audit-grid" style="grid-template-columns: 1fr;">
+                <div class="audit-item"><span>الاسم الكامل:</span><b id="info-staff-name">-</b></div>
+                <div class="audit-item"><span>البريد الإلكتروني المهني:</span><b id="info-staff-email">-</b></div>
+                <div class="audit-item"><span>الدور الوظيفي:</span><b id="info-staff-role">-</b></div>
+                <div class="audit-item"><span>حالة الحساب:</span><b id="info-staff-status">-</b></div>
+                <div class="audit-item"><span>تاريخ إنشاء الحساب:</span><b id="info-staff-date">-</b></div>
+            </div>
+
+            <button class="btn-main" style="background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); margin-top: 10px;" onclick="closeStaffInfoModal()">إغلاق</button>
+        </div>
+    </div>
+
     <div class="toast-container" id="toast-box"></div>
 
     <script>
@@ -299,7 +317,6 @@
             return div.innerHTML;
         }
 
-        // إنشاء حساب المدير العام افتراضياً في قاعدة البيانات إذا لم يكن موجوداً
         async function initAdminDatabase() {
             const sb = getSupabase();
             if (!sb) return;
@@ -436,7 +453,7 @@
                     if (loginAttempts >= 3) {
                         lockoutUntil = Date.now() + 30000;
                         loginAttempts = 0;
-                        showToast("تم إدخال بيانات خاطئة 3 مرات متتالية. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
+                        showToast("تم إدخال بيانات خاطئة 3 مرات. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
                     } else {
                         showToast(`البريد أو كلمة المرور غير صحيحة. المحاولة ${loginAttempts} من 3`, "error");
                     }
@@ -493,6 +510,7 @@
                                 <td>${sanitizeInput(acc.role)}</td>
                                 <td><span style="color:${acc.is_frozen ? 'var(--rose)' : 'var(--emerald)'}; font-weight:bold;">${acc.is_frozen ? 'مجمد' : 'نشط'}</span></td>
                                 <td>
+                                    <button class="btn-action btn-info" onclick="openStaffInfoModal(${acc.id})">اطلاع</button>
                                     <button class="btn-action btn-freeze" onclick="toggleStaffFreeze(${acc.id}, ${acc.is_frozen})">${acc.is_frozen ? 'تفعيل' : 'تجميد'}</button>
                                     <button class="btn-action btn-danger" onclick="deleteStaffAccount(${acc.id}, '${acc.name}')">حذف</button>
                                 </td>
@@ -654,6 +672,24 @@
         function closeAuditModal() {
             document.getElementById('audit-modal').classList.add('hidden');
             currentAuditedId = null;
+        }
+
+        // نافذة الاطلاع على معلومات الموظف/الأدمن
+        function openStaffInfoModal(staffId) {
+            const staff = cachedStaffList.find(s => s.id === staffId);
+            if (!staff) return;
+
+            document.getElementById('info-staff-name').innerText = sanitizeInput(staff.name);
+            document.getElementById('info-staff-email').innerText = sanitizeInput(staff.email);
+            document.getElementById('info-staff-role').innerText = sanitizeInput(staff.role);
+            document.getElementById('info-staff-status').innerText = staff.is_frozen ? "مجمد (موقوف)" : "نشط ومصرح له";
+            document.getElementById('info-staff-date').innerText = staff.created_at ? new Date(staff.created_at).toLocaleString('ar-EG') : "غير متوفر";
+
+            document.getElementById('staff-info-modal').classList.remove('hidden');
+        }
+
+        function closeStaffInfoModal() {
+            document.getElementById('staff-info-modal').classList.add('hidden');
         }
 
         async function modalDecision(type) {
