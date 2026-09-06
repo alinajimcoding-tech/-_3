@@ -778,24 +778,30 @@
             }
         }
 
-      async function deleteCitizenRequest(reqId, citizenPhone) {
-    if (!confirm(`هل أنت متأكد من حذف الطلب #${reqId} وحساب المواطن المرتبط به نهائياً؟`)) return;
-    const sb = getSupabase();
-    try {
-        if (sb) {
-            // حذف الطلب
-            await sb.from('requests').delete().eq('id', reqId);
-            // حذف حساب المواطن المسجل بالهاتف لمنع تداخل البيانات القديمة
-            if (citizenPhone && citizenPhone !== '-') {
-                await sb.from('citizens').delete().eq('phone', citizenPhone);
+        // حذف طلب وحساب المواطن وكافة معاملاته المرتبطة من الجذور بشكل كامل
+        async function deleteCitizenRequest(reqId, citizenPhone) {
+            if (!confirm(`هل أنت متأكد من حذف الطلب #${reqId} وكافة معاملاته وحساب المواطن المرتبط به نهائياً من الجذور؟`)) return;
+            const sb = getSupabase();
+            try {
+                if (sb) {
+                    // 1. حذف حركات المعاملات المرتبطة برقم الطلب أولاً لتجنب قيود المفتاح الأجنبي
+                    await sb.from('transactions').delete().eq('request_id', reqId);
+
+                    // 2. حذف الطلب نفسه من جدول requests
+                    const { error: reqErr } = await sb.from('requests').delete().eq('id', reqId);
+                    if (reqErr) throw reqErr;
+
+                    // 3. حذف حساب المواطن من جدول citizens بناءً على رقم الهاتف لمنع تداخل البيانات
+                    if (citizenPhone && citizenPhone !== '-') {
+                        await sb.from('citizens').delete().eq('phone', citizenPhone);
+                    }
+                }
+                showToast("تم مسح الطلب والمعاملات وحساب المواطن من الجذور تماماً", "success");
+                loadAdminData();
+            } catch(e) {
+                showToast(`تعذر الحذف بالكامل: ${e.message}`, "error");
             }
         }
-        showToast("تم مسح الحساب والطلب من جذورهما بنجاح", "success");
-        loadAdminData();
-    } catch(e) {
-        showToast(`تعذر الحذف: ${e.message}`, "error");
-    }
-}
 
         // إضافة تاجر جديد يدوياً من لوحة الأدمن
         async function showNewMerchantModal() {
@@ -829,7 +835,8 @@
                 }
             }
         }
-// حذف تاجر نهائياً مع كافة سجلاته وحركاته من السيرفر
+
+        // حذف تاجر نهائياً مع كافة سجلاته وحركاته من السيرفر
         async function deleteMerchantStore(storeId, storeName) {
             if (!confirm(`هل أنت متأكد من حذف المتجر "${storeName}" وسجل معاملاته نهائياً من النظام؟`)) return;
             const sb = getSupabase();
