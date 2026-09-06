@@ -148,7 +148,10 @@
         <div class="table-panel">
             <div class="panel-head">
                 <h3>صندوق تدقيق طلبات المواطنين واعتماد الهويات</h3>
-                <button class="btn-export" onclick="loadAdminData()">تحديث البيانات</button>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="text" id="search-admin-reqs" class="input-ctrl" placeholder="بحث باسم الموظف أو رقم الطلب..." style="margin-bottom:0; width:220px;" oninput="filterAdminRequestsLocally()">
+                    <button class="btn-export" onclick="loadAdminData()">تحديث البيانات</button>
+                </div>
             </div>
             <div class="table-responsive">
                 <table>
@@ -290,6 +293,11 @@
 
         let currentActiveUser = null;
         let currentAuditedId = null;
+        let cachedAdminRequests = [];
+
+        // متغيرات حماية التخمين (Rate Limiting & Lockout للإدارة)
+        let loginAttempts = 0;
+        let lockoutUntil = 0;
 
         function playTone(freq, type = 'sine', duration = 0.15) {
             try {
@@ -337,6 +345,13 @@
         }
 
         async function handleLogin() {
+            const now = Date.now();
+            if (now < lockoutUntil) {
+                const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
+                showToast(`تم حظر المحاولات مؤقتاً بسبب التخمين المتكرر. يرجى الانتظار ${remainingSec} ثانية.`, "error");
+                return;
+            }
+
             const email = sanitizeInput(document.getElementById('adm-email').value).toLowerCase();
             const pass = document.getElementById('adm-pass').value.trim();
 
@@ -349,12 +364,25 @@
             const hashedInputPass = await hashPin(pass);
             let user = accounts.find(a => a.email === email && a.pass === hashedInputPass);
 
+            const sb = getSupabase();
+
             if (user) {
                 if (user.isFrozen) {
                     showToast("هذا الحساب مقيد حالياً من قبل الإدارة", "error");
                     return;
                 }
+                loginAttempts = 0;
                 currentActiveUser = user;
+
+                // توثيق تسجيل الدخول في سجلات التدقيق
+                if (sb) {
+                    await sb.from('audit_logs').insert([{
+                        action_type: 'SUCCESSFUL_ADMIN_LOGIN',
+                        description: `تم تسجيل دخول المسؤول: ${user.name} (${user.email}) بنجاح`,
+                        created_at: new Date().toISOString()
+                    }]).catch(()=>{});
+                }
+
                 document.getElementById('adm-welcome-text').innerText = user.role === 'gm' ? "المدير العام" : user.name;
                 document.getElementById('admin-login-screen').classList.add('hidden');
                 document.getElementById('admin-main-dash').classList.remove('hidden');
@@ -369,7 +397,22 @@
                 loadAdminData();
                 showToast("تم تسجيل الدخول الآمن بنجاح", "success");
             } else {
-                showToast("البريد الإلكتروني أو كلمة المرور غير صحيحة", "error");
+                loginAttempts++;
+                if (loginAttempts >= 3) {
+                    lockoutUntil = Date.now() + 30000; // حظر 30 ثانية
+                    loginAttempts = 0;
+                    showToast("تم إدخال بيانات خاطئة 3 مرات متتالية. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
+                } else {
+                    showToast(`البريد أو كلمة المرور غير صحيحة. المحاولة ${loginAttempts} من 3`, "error");
+                }
+
+                if (sb) {
+                    await sb.from('audit_logs').insert([{
+                        action_type: 'FAILED_ADMIN_LOGIN',
+                        description: `محاولة دخول إداري فاشلة للبريد: ${email}`,
+                        created_at: new Date().toISOString()
+                    }]).catch(()=>{});
+                }
             }
         }
 
@@ -386,14 +429,8 @@
                     if (txData) transactions = txData;
                 }
 
-                let activeTxs = transactions.filter(t => !t.is_refunded);
-                let pendingCount = requests.filter(r => r.status === 'pending').length;
-                let totalSpent = activeTxs.reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-
-                document.getElementById('kpi-pending-count').innerText = pendingCount;
-                document.getElementById('kpi-total-spend').innerText = `${totalSpent.toLocaleString()} د.ع`;
-                document.getElementById('kpi-union-fee').innerText = `${(totalSpent * 0.03).toLocaleString()} د.ع`;
-                document.getElementById('kpi-merchants-net').innerText = `${(totalSpent * 0.97).toLocaleString()} د.ع`;
+                cachedAdminRequests = requests;
+                displayFilteredAdminRequests(cachedAdminRequests, transactions);
 
                 let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
                 if (currentActiveUser && currentActiveUser.role === 'gm') {
@@ -415,41 +452,67 @@
                         `;
                     });
                 }
+            } catch(e) {
+                console.error(e);
+            }
+        }
 
-                const reqTable = document.getElementById('requests-table-body');
-                reqTable.innerHTML = "";
+        // دالة عرض الطلبات مع محرك البحث الذكي الآمن محلياً
+        function displayFilteredAdminRequests(requests, transactions = []) {
+            const reqTable = document.getElementById('requests-table-body');
+            if (!reqTable) return;
+            const query = (document.getElementById('search-admin-reqs').value || "").toLowerCase().trim();
 
-                if (requests.length === 0) {
-                    reqTable.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-sub);">لا توجد طلبات مسجلة حتى الآن</td></tr>`;
-                } else {
-                    requests.forEach((req) => {
-                        let statusTxt = "";
-                        if (req.status === 'pending') statusTxt = `<span style="color:var(--amber); font-weight:bold;">قيد التدقيق</span>`;
-                        if (req.status === 'approved') statusTxt = `<span style="color:var(--emerald); font-weight:bold;">معتمد</span>`;
-                        if (req.status === 'rejected') statusTxt = `<span style="color:var(--rose); font-weight:bold;">مرفوض</span>`;
+            const filtered = requests.filter(r => {
+                const nameStr = String(r.name || "").toLowerCase();
+                const idStr = String(r.id || "").toLowerCase();
+                const deptStr = String(r.dept || "").toLowerCase();
+                return nameStr.includes(query) || idStr.includes(query) || deptStr.includes(query);
+            });
 
-                        reqTable.innerHTML += `
-                            <tr>
-                                <td><b>#${req.id}</b></td>
-                                <td>${sanitizeInput(req.name)}</td>
-                                <td>${sanitizeInput(req.phone || '-')}</td>
-                                <td>${sanitizeInput(req.dept)}</td>
-                                <td>${(parseFloat(req.net_salary) || 0).toLocaleString()} د.ع</td>
-                                <td><b>${(parseFloat(req.credit_limit) || 0).toLocaleString()} د.ع</b></td>
-                                <td>${statusTxt}</td>
-                                <td style="font-size:11px; color:var(--text-sub);">${sanitizeInput(req.audited_by || 'قيد الانتظار')}</td>
-                                <td>
-                                    <button class="btn-action btn-audit" onclick="openAuditModal(${req.id})">تدقيق</button>
-                                    ${req.status === 'approved' ? `<button class="btn-action btn-freeze" onclick="toggleFreezeReq(${req.id}, ${req.is_frozen})">${req.is_frozen ? 'إلغاء التجميد' : 'تجميد'}</button>` : ''}
-                                </td>
-                            </tr>
-                        `;
-                    });
-                }
+            let activeTxs = transactions.filter(t => !t.is_refunded);
+            let pendingCount = requests.filter(r => r.status === 'pending').length;
+            let totalSpent = activeTxs.reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
 
-                const merTable = document.getElementById('merchants-table-body');
+            document.getElementById('kpi-pending-count').innerText = pendingCount;
+            document.getElementById('kpi-total-spend').innerText = `${totalSpent.toLocaleString()} د.ع`;
+            document.getElementById('kpi-union-fee').innerText = `${(totalSpent * 0.03).toLocaleString()} د.ع`;
+            document.getElementById('kpi-merchants-net').innerText = `${(totalSpent * 0.97).toLocaleString()} د.ع`;
+
+            reqTable.innerHTML = "";
+
+            if (filtered.length === 0) {
+                reqTable.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-sub);">لا توجد طلبات مطابقة للبحث</td></tr>`;
+            } else {
+                filtered.forEach((req) => {
+                    let statusTxt = "";
+                    if (req.status === 'pending') statusTxt = `<span style="color:var(--amber); font-weight:bold;">قيد التدقيق</span>`;
+                    if (req.status === 'approved') statusTxt = `<span style="color:var(--emerald); font-weight:bold;">معتمد</span>`;
+                    if (req.status === 'rejected') statusTxt = `<span style="color:var(--rose); font-weight:bold;">مرفوض</span>`;
+
+                    reqTable.innerHTML += `
+                        <tr>
+                            <td><b>#${req.id}</b></td>
+                            <td>${sanitizeInput(req.name)}</td>
+                            <td>${sanitizeInput(req.phone || '-')}</td>
+                            <td>${sanitizeInput(req.dept)}</td>
+                            <td>${(parseFloat(req.net_salary) || 0).toLocaleString()} د.ع</td>
+                            <td><b>${(parseFloat(req.credit_limit) || 0).toLocaleString()} د.ع</b></td>
+                            <td>${statusTxt}</td>
+                            <td style="font-size:11px; color:var(--text-sub);">${sanitizeInput(req.audited_by || 'قيد الانتظار')}</td>
+                            <td>
+                                <button class="btn-action btn-audit" onclick="openAuditModal(${req.id})">تدقيق</button>
+                                ${req.status === 'approved' ? `<button class="btn-action btn-freeze" onclick="toggleFreezeReq(${req.id}, ${req.is_frozen})">${req.is_frozen ? 'إلغاء التجميد' : 'تجميد'}</button>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // تحديث جدول تسويات المتاجر أيضاً
+            const merTable = document.getElementById('merchants-table-body');
+            if (merTable) {
                 merTable.innerHTML = "";
-
                 if (activeTxs.length === 0) {
                     merTable.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-sub);">لا توجد حركات مبيعات مسجلة</td></tr>`;
                 } else {
@@ -472,9 +535,12 @@
                         `;
                     });
                 }
-            } catch(e) {
-                console.error(e);
             }
+        }
+
+        function filterAdminRequestsLocally() {
+            const sb = getSupabase();
+            loadAdminData(); // إعادة جلب وتحديث الفلتر محلياً
         }
 
         async function openAuditModal(reqId) {
@@ -530,6 +596,13 @@
                             status: 'approved',
                             audited_by: `${auditorName} (${new Date().toLocaleDateString('ar-EG')})`
                         }).eq('id', currentAuditedId);
+
+                        // توثيق العملية في جدول سجلات التدقيق (Audit Trail Logs)
+                        await sb.from('audit_logs').insert([{
+                            action_type: 'APPROVE_REQUEST',
+                            description: `قام المسؤول ${auditorName} بقبول واعتماد طلب المواطن برقم #${currentAuditedId}`,
+                            created_at: new Date().toISOString()
+                        }]).catch(()=>{});
                     }
                     showToast("تم اعتماد طلب المواطن وتفعيل الهوية بنجاح", "success");
                     closeAuditModal();
@@ -543,6 +616,12 @@
                                 decision_note: sanitizeInput(reason),
                                 audited_by: `${auditorName} (${new Date().toLocaleDateString('ar-EG')})`
                             }).eq('id', currentAuditedId);
+
+                            await sb.from('audit_logs').insert([{
+                                action_type: 'REJECT_REQUEST',
+                                description: `قام المسؤول ${auditorName} برفض الطلب #${currentAuditedId}. السبب: ${sanitizeInput(reason)}`,
+                                created_at: new Date().toISOString()
+                            }]).catch(()=>{});
                         }
                         showToast("تم رفض الطلب وتوثيق السبب", "error");
                         closeAuditModal();
@@ -563,6 +642,12 @@
                                 balance: parsedLimit,
                                 audited_by: `${auditorName} [تعديل]`
                             }).eq('id', currentAuditedId);
+
+                            await sb.from('audit_logs').insert([{
+                                action_type: 'EDIT_REQUEST',
+                                description: `قام المسؤول ${auditorName} بتعديل بيانات الطلب #${currentAuditedId}`,
+                                created_at: new Date().toISOString()
+                            }]).catch(()=>{});
                         }
                         showToast("تم حفظ التعديلات بنجاح", "success");
                         closeAuditModal();
