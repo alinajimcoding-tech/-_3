@@ -123,10 +123,10 @@
             </div>
         </div>
 
-        <!-- إدارة الكادر (الموظفين والأدمن) -->
+        <!-- إدارة الكادر (الموظفين والأدمن في قاعدة البيانات) -->
         <div id="gm-management-panel" class="table-panel hidden">
             <div class="panel-head">
-                <h3>إدارة حسابات موظفي الاتحاد والأدمن والصلاحيات</h3>
+                <h3>إدارة حسابات موظفي الاتحاد والأدمن والصلاحيات (من السيرفر)</h3>
                 <button class="btn-export" onclick="showNewStaffModal()">+ إضافة حساب أدمن / موظف جديد</button>
             </div>
             <div class="table-responsive">
@@ -299,26 +299,30 @@
             return div.innerHTML;
         }
 
-        async function initAdminAccounts() {
-            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
-            if (accounts.length === 0) {
-                const defaultHashedPass = await hashPin("admin1234");
-                accounts.push({
-                    name: "المدير العام",
-                    email: "gm@union.iq",
-                    pass: defaultHashedPass,
-                    role: "gm",
-                    isFrozen: false
-                });
-                localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
-            }
+        // إنشاء حساب المدير العام افتراضياً في قاعدة البيانات إذا لم يكن موجوداً
+        async function initAdminDatabase() {
+            const sb = getSupabase();
+            if (!sb) return;
+            try {
+                const { data } = await sb.from('admin_users').select('*').eq('email', 'gm@union.iq').maybeSingle();
+                if (!data) {
+                    const hashedPass = await hashPin("admin1234");
+                    await sb.from('admin_users').insert([{
+                        name: "المدير العام",
+                        email: "gm@union.iq",
+                        password: hashedPass,
+                        role: "gm",
+                        is_frozen: false
+                    }]);
+                }
+            } catch(e){}
         }
-        initAdminAccounts();
 
         let currentActiveUser = null;
         let currentAuditedId = null;
         let cachedAdminRequests = [];
         let cachedAdminStores = [];
+        let cachedStaffList = [];
 
         let loginAttempts = 0;
         let lockoutUntil = 0;
@@ -384,63 +388,71 @@
                 return;
             }
 
-            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
-            const hashedInputPass = await hashPin(pass);
-            let user = accounts.find(a => a.email.toLowerCase().trim() === email && a.pass === hashedInputPass);
-
             const sb = getSupabase();
-
-            if (user) {
-                if (user.isFrozen) {
-                    showToast("هذا الحساب مقيد حالياً من قبل الإدارة", "error");
-                    return;
-                }
-                loginAttempts = 0;
-                lockoutUntil = 0;
-                currentActiveUser = user;
-
+            try {
+                await initAdminDatabase();
+                const hashedInputPass = await hashPin(pass);
+                
+                let user = null;
                 if (sb) {
-                    try {
-                        await sb.from('audit_logs').insert([{
-                            action_type: 'SUCCESSFUL_ADMIN_LOGIN',
-                            description: `تم تسجيل دخول المسؤول: ${user.name} (${user.email}) بنجاح`,
-                            created_at: new Date().toISOString()
-                        }]);
-                    } catch(e){}
+                    const { data, error } = await sb.from('admin_users').select('*').eq('email', email).eq('password', hashedInputPass).maybeSingle();
+                    if (!error && data) user = data;
                 }
 
-                document.getElementById('adm-welcome-text').innerText = user.role === 'gm' ? "المدير العام" : user.name;
-                document.getElementById('admin-login-screen').classList.add('hidden');
-                document.getElementById('admin-main-dash').classList.remove('hidden');
-
-                if (user.role === 'gm') {
-                    document.getElementById('gm-management-panel').classList.remove('hidden');
-                } else {
-                    document.getElementById('gm-management-panel').classList.add('hidden');
-                }
-
-                initRealtimeAdmin();
-                loadAdminData();
-                showToast("تم تسجيل الدخول الآمن بنجاح", "success");
-            } else {
-                loginAttempts++;
-                if (loginAttempts >= 3) {
-                    lockoutUntil = Date.now() + 30000;
+                if (user) {
+                    if (user.is_frozen) {
+                        showToast("هذا الحساب مقيد حالياً من قبل الإدارة", "error");
+                        return;
+                    }
                     loginAttempts = 0;
-                    showToast("تم إدخال بيانات خاطئة 3 مرات. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
-                } else {
-                    showToast(`البريد أو كلمة المرور غير صحيحة. المحاولة ${loginAttempts} من 3`, "error");
-                }
+                    lockoutUntil = 0;
+                    currentActiveUser = user;
 
-                if (sb) {
-                    try {
-                        await sb.from('audit_logs').insert([{
-                            action_type: 'FAILED_ADMIN_LOGIN',
-                            description: `محاولة دخول إداري فاشلة للبريد: ${email}`,
-                            created_at: new Date().toISOString()
-                        }]);
-                    } catch(e){}
+                    if (sb) {
+                        try {
+                            await sb.from('audit_logs').insert([{
+                                action_type: 'SUCCESSFUL_ADMIN_LOGIN',
+                                description: `تم تسجيل دخول المسؤول: ${user.name} (${user.email}) بنجاح`,
+                                created_at: new Date().toISOString()
+                            }]);
+                        } catch(e){}
+                    }
+
+                    document.getElementById('adm-welcome-text').innerText = user.role === 'gm' ? "المدير العام" : user.name;
+                    document.getElementById('admin-login-screen').classList.add('hidden');
+                    document.getElementById('admin-main-dash').classList.remove('hidden');
+
+                    if (user.role === 'gm') {
+                        document.getElementById('gm-management-panel').classList.remove('hidden');
+                    } else {
+                        document.getElementById('gm-management-panel').classList.add('hidden');
+                    }
+
+                    initRealtimeAdmin();
+                    loadAdminData();
+                    showToast("تم تسجيل الدخول الآمن بنجاح", "success");
+                } else {
+                    loginAttempts++;
+                    if (loginAttempts >= 3) {
+                        lockoutUntil = Date.now() + 30000;
+                        loginAttempts = 0;
+                        showToast("تم إدخال بيانات خاطئة 3 مرات متتالية. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
+                    } else {
+                        showToast(`البريد أو كلمة المرور غير صحيحة. المحاولة ${loginAttempts} من 3`, "error");
+                    }
+
+                    if (sb) {
+                        try {
+                            await sb.from('audit_logs').insert([{
+                                action_type: 'FAILED_ADMIN_LOGIN',
+                                description: `محاولة دخول إداري فاشلة للبريد: ${email}`,
+                                created_at: new Date().toISOString()
+                            }]);
+                        } catch(e){}
+                    }
                 }
+            } catch(e) {
+                showToast(`خطأ في تسجيل الدخول: ${e.message}`, "error");
             }
         }
 
@@ -450,36 +462,39 @@
                 let requests = [];
                 let transactions = [];
                 let stores = [];
+                let staff = [];
 
                 if (sb) {
                     const { data: reqData } = await sb.from('requests').select('*').order('created_at', { ascending: false });
                     const { data: txData } = await sb.from('transactions').select('*').order('created_at', { ascending: false });
                     const { data: storeData } = await sb.from('stores').select('*').order('created_at', { ascending: false });
+                    const { data: staffData } = await sb.from('admin_users').select('*').order('created_at', { ascending: false });
+                    
                     if (reqData) requests = reqData;
                     if (txData) transactions = txData;
                     if (storeData) stores = storeData;
+                    if (staffData) staff = staffData;
                 }
 
                 cachedAdminRequests = requests;
                 cachedAdminStores = stores;
+                cachedStaffList = staff;
                 displayFilteredAdminRequests(cachedAdminRequests, transactions, cachedAdminStores);
 
-                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
                 if (currentActiveUser && currentActiveUser.role === 'gm') {
                     const staffTbody = document.getElementById('staff-table-body');
                     staffTbody.innerHTML = "";
-                    accounts.forEach((acc, idx) => {
+                    staff.forEach((acc) => {
                         if (acc.email === 'gm@union.iq') return;
                         staffTbody.innerHTML += `
                             <tr>
                                 <td><b>${sanitizeInput(acc.name)}</b></td>
                                 <td>${sanitizeInput(acc.email)}</td>
                                 <td>${sanitizeInput(acc.role)}</td>
-                                <td><span style="color:${acc.isFrozen ? 'var(--rose)' : 'var(--emerald)'}; font-weight:bold;">${acc.isFrozen ? 'مجمد' : 'نشط'}</span></td>
+                                <td><span style="color:${acc.is_frozen ? 'var(--rose)' : 'var(--emerald)'}; font-weight:bold;">${acc.is_frozen ? 'مجمد' : 'نشط'}</span></td>
                                 <td>
-                                    <button class="btn-action btn-freeze" onclick="toggleStaffFreeze(${idx})">${acc.isFrozen ? 'تفعيل' : 'تجميد'}</button>
-                                    <button class="btn-action btn-audit" onclick="changeStaffPass(${idx})">تغيير السر</button>
-                                    <button class="btn-action btn-danger" onclick="deleteStaffAccount(${idx})">حذف</button>
+                                    <button class="btn-action btn-freeze" onclick="toggleStaffFreeze(${acc.id}, ${acc.is_frozen})">${acc.is_frozen ? 'تفعيل' : 'تجميد'}</button>
+                                    <button class="btn-action btn-danger" onclick="deleteStaffAccount(${acc.id}, '${acc.name}')">حذف</button>
                                 </td>
                             </tr>
                         `;
@@ -844,9 +859,10 @@
             }
         }
 
+        // إضافة موظف / أدمن جديد في قاعدة البيانات ليتمكن من تسجيل الدخول
         async function showNewStaffModal() {
             let name = prompt("اسم الموظف / الأدمن:");
-            let email = prompt("البريد الإلكتروني:");
+            let email = prompt("البريد الإلكتروني المهني:");
             let pass = prompt("كلمة المرور (6 خانات على الأقل):");
             let role = prompt("الدور (معاون / مدقق / أدمن):", "مدقق");
 
@@ -855,46 +871,53 @@
                     showToast("كلمة المرور قصيرة جداً", "error");
                     return;
                 }
-                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
-                const hashedPass = await hashPin(pass);
-                accounts.push({ name: sanitizeInput(name), email: sanitizeInput(email).toLowerCase().trim(), pass: hashedPass, role: sanitizeInput(role), isFrozen: false });
-                localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
-                showToast("تمت إضافة حساب الموظف/الأدمن بنجاح", "success");
-                loadAdminData();
-            }
-        }
-
-        function toggleStaffFreeze(idx) {
-            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
-            accounts[idx].isFrozen = !accounts[idx].isFrozen;
-            localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
-            showToast("تم تحديث حالة حساب الموظف", "info");
-            loadAdminData();
-        }
-
-        async function changeStaffPass(idx) {
-            let newP = prompt("أدخل كلمة المرور الجديدة للموظف:");
-            if (newP) {
-                if (newP.length < 6) {
-                    showToast("كلمة المرور قصيرة جداً", "error");
-                    return;
+                const sb = getSupabase();
+                try {
+                    const hashedPass = await hashPin(pass);
+                    if (sb) {
+                        const { error } = await sb.from('admin_users').insert([{
+                            name: sanitizeInput(name),
+                            email: sanitizeInput(email).toLowerCase().trim(),
+                            password: hashedPass,
+                            role: sanitizeInput(role),
+                            is_frozen: false
+                        }]);
+                        if (error) throw error;
+                    }
+                    showToast("تمت إضافة حساب الموظف/الأدمن بنجاح", "success");
+                    loadAdminData();
+                } catch(e) {
+                    showToast(`خطأ في إضافة الموظف: ${e.message}`, "error");
                 }
-                let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
-                accounts[idx].pass = await hashPin(newP);
-                localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
-                showToast("تم تحديث كلمة المرور المشفرة بنجاح", "success");
-                loadAdminData();
             }
         }
 
-        // حذف حساب الموظف/الأدمن
-        function deleteStaffAccount(idx) {
-            if (!confirm("هل أنت متأكد من حذف حساب هذا الموظف/الأدمن نهائياً؟")) return;
-            let accounts = JSON.parse(localStorage.getItem('union_admin_accounts_secure') || '[]');
-            accounts.splice(idx, 1);
-            localStorage.setItem('union_admin_accounts_secure', JSON.stringify(accounts));
-            showToast("تم حذف حساب الموظف بنجاح", "success");
-            loadAdminData();
+        async function toggleStaffFreeze(staffId, currentFrozen) {
+            const sb = getSupabase();
+            try {
+                if (sb) {
+                    await sb.from('admin_users').update({ is_frozen: !currentFrozen }).eq('id', staffId);
+                }
+                showToast("تم تحديث حالة حساب الموظف", "info");
+                loadAdminData();
+            } catch(e) {
+                showToast("تعذر تغيير حالة الحساب", "error");
+            }
+        }
+
+        // حذف حساب الموظف / الأدمن من قاعدة البيانات
+        async function deleteStaffAccount(staffId, staffName) {
+            if (!confirm(`هل أنت متأكد من حذف حساب الموظف "${staffName}" نهائياً من النظام؟`)) return;
+            const sb = getSupabase();
+            try {
+                if (sb) {
+                    await sb.from('admin_users').delete().eq('id', staffId);
+                }
+                showToast("تم حذف حساب الموظف بنجاح", "success");
+                loadAdminData();
+            } catch(e) {
+                showToast(`تعذر الحذف: ${e.message}`, "error");
+            }
         }
 
         function logoutAdmin() {
