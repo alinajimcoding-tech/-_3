@@ -778,23 +778,24 @@
             }
         }
 
-        // حذف طلب وحساب المواطن نهائياً
-        async function deleteCitizenRequest(reqId, citizenPhone) {
-            if (!confirm(`هل أنت متأكد من حذف الطلب #${reqId} وحساب المواطن المرتبط به نهائياً؟`)) return;
-            const sb = getSupabase();
-            try {
-                if (sb) {
-                    await sb.from('requests').delete().eq('id', reqId);
-                    if (citizenPhone && citizenPhone !== '-') {
-                        await sb.from('citizens').delete().eq('phone', citizenPhone);
-                    }
-                }
-                showToast("تم حذف الطلب وحساب المواطن بنجاح", "success");
-                loadAdminData();
-            } catch(e) {
-                showToast(`تعذر الحذف: ${e.message}`, "error");
+      async function deleteCitizenRequest(reqId, citizenPhone) {
+    if (!confirm(`هل أنت متأكد من حذف الطلب #${reqId} وحساب المواطن المرتبط به نهائياً؟`)) return;
+    const sb = getSupabase();
+    try {
+        if (sb) {
+            // حذف الطلب
+            await sb.from('requests').delete().eq('id', reqId);
+            // حذف حساب المواطن المسجل بالهاتف لمنع تداخل البيانات القديمة
+            if (citizenPhone && citizenPhone !== '-') {
+                await sb.from('citizens').delete().eq('phone', citizenPhone);
             }
         }
+        showToast("تم مسح الحساب والطلب من جذورهما بنجاح", "success");
+        loadAdminData();
+    } catch(e) {
+        showToast(`تعذر الحذف: ${e.message}`, "error");
+    }
+}
 
         // إضافة تاجر جديد يدوياً من لوحة الأدمن
         async function showNewMerchantModal() {
@@ -828,16 +829,20 @@
                 }
             }
         }
-
-        // حذف تاجر نهائياً
+// حذف تاجر نهائياً مع كافة سجلاته وحركاته من السيرفر
         async function deleteMerchantStore(storeId, storeName) {
-            if (!confirm(`هل أنت متأكد من حذف المتجر "${storeName}" نهائياً من النظام؟`)) return;
+            if (!confirm(`هل أنت متأكد من حذف المتجر "${storeName}" وسجل معاملاته نهائياً من النظام؟`)) return;
             const sb = getSupabase();
             try {
                 if (sb) {
-                    await sb.from('stores').delete().eq('id', storeId);
+                    // حذف حركات المبيعات الخاصة بالمتجر أولاً لتجنب قيود المفتاح الأجنبي (Foreign Key)
+                    await sb.from('transactions').delete().eq('store_name', storeName);
+                    
+                    // حذف حساب المتجر من جدول stores
+                    const { error } = await sb.from('stores').delete().eq('id', storeId);
+                    if (error) throw error;
                 }
-                showToast("تم حذف المتجر بنجاح", "success");
+                showToast("تم حذف المتجر وسجلاته من الجذور بنجاح", "success");
                 loadAdminData();
             } catch(e) {
                 showToast(`تعذر حذف المتجر: ${e.message}`, "error");
