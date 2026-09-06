@@ -264,7 +264,7 @@
         </div>
     </div>
 
-    <!-- نافذة الاطلاع على معلومات حساب الموظف / الأدمن مع زر التعديل (Edit) -->
+    <!-- نافذة الاطلاع على معلومات حساب الموظف / الأدمن مع عرض كلمة المرور صريحة وزر التعديل -->
     <div id="staff-info-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 450px; text-align: start;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
@@ -278,7 +278,7 @@
                 <div class="audit-item"><span>رقم الهاتف:</span><b id="info-staff-phone">-</b></div>
                 <div class="audit-item"><span>الدور الوظيفي:</span><b id="info-staff-role">-</b></div>
                 <div class="audit-item"><span>حالة الحساب:</span><b id="info-staff-status">-</b></div>
-                <div class="audit-item"><span>كلمة المرور الحالية (مشفرة SHA-256):</span><b id="info-staff-pass" style="font-size:10px; word-break:break-all;">-</b></div>
+                <div class="audit-item"><span>كلمة المرور الحالية:</span><b id="info-staff-pass" style="color:var(--amber);">-</b></div>
                 <div class="audit-item"><span>تاريخ إنشاء الحساب:</span><b id="info-staff-date">-</b></div>
             </div>
 
@@ -305,17 +305,6 @@
             return supabaseClient;
         }
 
-        async function hashPin(pin) {
-            try {
-                const msgBuffer = new TextEncoder().encode(pin);
-                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-                const hashArray = Array.from(new Uint8Array(hashBuffer));
-                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            } catch(e) {
-                return pin;
-            }
-        }
-
         function sanitizeInput(str) {
             if (!str) return "";
             const div = document.createElement('div');
@@ -329,11 +318,10 @@
             try {
                 const { data } = await sb.from('admin_users').select('*').eq('email', 'gm@union.iq').maybeSingle();
                 if (!data) {
-                    const hashedPass = await hashPin("admin1234");
                     await sb.from('admin_users').insert([{
                         name: "المدير العام",
                         email: "gm@union.iq",
-                        password: hashedPass,
+                        password: "admin1234",
                         role: "gm",
                         phone: "07800000000",
                         is_frozen: false
@@ -348,9 +336,6 @@
         let cachedAdminRequests = [];
         let cachedAdminStores = [];
         let cachedStaffList = [];
-
-        let loginAttempts = 0;
-        let lockoutUntil = 0;
 
         function playTone(freq, type = 'sine', duration = 0.15) {
             try {
@@ -392,19 +377,11 @@
                         loadAdminData();
                     })
                     .subscribe();
-            } catch(e) {
-                console.warn("Realtime error:", e);
-            }
+            } catch(e) {}
         }
 
+        // تسجيل دخول سريع ومباشر من الضغطة الأولى دون أي إبطاء
         async function handleLogin() {
-            const now = Date.now();
-            if (now < lockoutUntil) {
-                const remainingSec = Math.ceil((lockoutUntil - now) / 1000);
-                showToast(`تم حظر المحاولات مؤقتاً. يرجى الانتظار ${remainingSec} ثانية.`, "error");
-                return;
-            }
-
             const email = sanitizeInput(document.getElementById('adm-email').value).toLowerCase().trim();
             const pass = document.getElementById('adm-pass').value.trim();
 
@@ -416,11 +393,10 @@
             const sb = getSupabase();
             try {
                 await initAdminDatabase();
-                const hashedInputPass = await hashPin(pass);
                 
                 let user = null;
                 if (sb) {
-                    const { data, error } = await sb.from('admin_users').select('*').eq('email', email).eq('password', hashedInputPass).maybeSingle();
+                    const { data, error } = await sb.from('admin_users').select('*').eq('email', email).eq('password', pass).maybeSingle();
                     if (!error && data) user = data;
                 }
 
@@ -429,8 +405,6 @@
                         showToast("هذا الحساب مقيد حالياً من قبل الإدارة", "error");
                         return;
                     }
-                    loginAttempts = 0;
-                    lockoutUntil = 0;
                     currentActiveUser = user;
 
                     if (sb) {
@@ -457,24 +431,7 @@
                     loadAdminData();
                     showToast("تم تسجيل الدخول الآمن بنجاح", "success");
                 } else {
-                    loginAttempts++;
-                    if (loginAttempts >= 3) {
-                        lockoutUntil = Date.now() + 30000;
-                        loginAttempts = 0;
-                        showToast("تم إدخال بيانات خاطئة 3 مرات. تم حظر الدخول مؤقتاً لمدة 30 ثانية.", "error");
-                    } else {
-                        showToast(`البريد أو كلمة المرور غير صحيحة. المحاولة ${loginAttempts} من 3`, "error");
-                    }
-
-                    if (sb) {
-                        try {
-                            await sb.from('audit_logs').insert([{
-                                action_type: 'FAILED_ADMIN_LOGIN',
-                                description: `محاولة دخول إداري فاشلة للبريد: ${email}`,
-                                created_at: new Date().toISOString()
-                            }]);
-                        } catch(e){}
-                    }
+                    showToast("البريد الإلكتروني أو كلمة المرور غير صحيحة", "error");
                 }
             } catch(e) {
                 showToast(`خطأ في تسجيل الدخول: ${e.message}`, "error");
@@ -682,7 +639,7 @@
             currentAuditedId = null;
         }
 
-        // نافذة الاطلاع على معلومات الموظف/الأدمن الشاملة
+        // نافذة الاطلاع على معلومات الموظف/الأدمن مع كلمة المرور الصريحة
         function openStaffInfoModal(staffId) {
             const staff = cachedStaffList.find(s => s.id === staffId);
             if (!staff) return;
@@ -693,7 +650,7 @@
             document.getElementById('info-staff-phone').innerText = sanitizeInput(staff.phone || "غير مسجل");
             document.getElementById('info-staff-role').innerText = sanitizeInput(staff.role);
             document.getElementById('info-staff-status').innerText = staff.is_frozen ? "مجمد (موقوف)" : "نشط ومصرح له";
-            document.getElementById('info-staff-pass').innerText = sanitizeInput(staff.password || "مشفر سرياً");
+            document.getElementById('info-staff-pass').innerText = sanitizeInput(staff.password || "-");
             document.getElementById('info-staff-date').innerText = staff.created_at ? new Date(staff.created_at).toLocaleString('ar-EG') : "غير متوفر";
 
             document.getElementById('staff-info-modal').classList.remove('hidden');
@@ -714,7 +671,7 @@
             let newEmail = prompt("تعديل البريد الإلكتروني:", staff.email);
             let newPhone = prompt("تعديل رقم الهاتف:", staff.phone || "");
             let newRole = prompt("تعديل الدور الوظيفي:", staff.role);
-            let newPass = prompt("تعديل كلمة المرور (أدخل كلمة جديدة أو اتركه فارغاً للإبقاء على القديمة):");
+            let newPass = prompt("تعديل كلمة المرور:", staff.password || "");
 
             if (newName && newEmail) {
                 const sb = getSupabase();
@@ -723,12 +680,9 @@
                         name: sanitizeInput(newName),
                         email: sanitizeInput(newEmail).toLowerCase().trim(),
                         phone: sanitizeInput(newPhone),
-                        role: sanitizeInput(newRole)
+                        role: sanitizeInput(newRole),
+                        password: sanitizeInput(newPass)
                     };
-
-                    if (newPass && newPass.trim().length >= 6) {
-                        updateData.password = await hashPin(newPass.trim());
-                    }
 
                     if (sb) {
                         const { error } = await sb.from('admin_users').update(updateData).eq('id', currentViewingStaffId);
@@ -857,14 +811,13 @@
                 }
                 const sb = getSupabase();
                 try {
-                    const hashedPass = await hashPin(pass);
                     if (sb) {
                         const { error } = await sb.from('stores').insert([{
                             name: sanitizeInput(name),
                             phone: sanitizeInput(phone),
                             address: sanitizeInput(address),
                             products: sanitizeInput(products),
-                            password: hashedPass
+                            password: pass
                         }]);
                         if (error) throw error;
                     }
@@ -947,7 +900,7 @@
             }
         }
 
-        // إضافة موظف / أدمن جديد في قاعدة البيانات ليتمكن من تسجيل الدخول
+        // إضافة موظف / أدمن جديد بكلمة مرور صريحة غير مشفرة
         async function showNewStaffModal() {
             let name = prompt("اسم الموظف / الأدمن:");
             let email = prompt("البريد الإلكتروني المهني:");
@@ -962,13 +915,12 @@
                 }
                 const sb = getSupabase();
                 try {
-                    const hashedPass = await hashPin(pass);
                     if (sb) {
                         const { error } = await sb.from('admin_users').insert([{
                             name: sanitizeInput(name),
                             email: sanitizeInput(email).toLowerCase().trim(),
                             phone: sanitizeInput(phone),
-                            password: hashedPass,
+                            password: pass,
                             role: sanitizeInput(role),
                             is_frozen: false
                         }]);
