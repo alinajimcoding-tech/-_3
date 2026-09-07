@@ -298,9 +298,7 @@
                 if (window.supabase && typeof window.supabase.createClient === 'function') {
                     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 }
-            } catch(e) {
-                console.warn("Supabase initialization error:", e);
-            }
+            } catch(e) {}
             return supabaseClient;
         }
 
@@ -348,6 +346,21 @@
         let cachedAdminStores = [];
         let cachedStaffList = [];
 
+        // فحص جلسة الأدمن عند التحميل (صلاحية 4 ساعات)
+        try {
+            const savedAdminSession = localStorage.getItem('union_admin_session');
+            if (savedAdminSession) {
+                const parsed = JSON.parse(savedAdminSession);
+                if (parsed && parsed.expiry && Date.now() < parsed.expiry) {
+                    currentActiveUser = parsed.data;
+                } else {
+                    localStorage.removeItem('union_admin_session');
+                }
+            }
+        } catch(e) {
+            localStorage.removeItem('union_admin_session');
+        }
+
         function playTone(freq, type = 'sine', duration = 0.15) {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -390,6 +403,25 @@
             } catch(e) {}
         }
 
+        function checkAdminSessionState() {
+            if (currentActiveUser) {
+                document.getElementById('adm-welcome-text').innerText = currentActiveUser.role === 'gm' ? "المدير العام" : currentActiveUser.name;
+                document.getElementById('admin-login-screen').classList.add('hidden');
+                document.getElementById('admin-main-dash').classList.remove('hidden');
+
+                if (currentActiveUser.role === 'gm') {
+                    document.getElementById('gm-management-panel').classList.remove('hidden');
+                } else {
+                    document.getElementById('gm-management-panel').classList.add('hidden');
+                }
+                initRealtimeAdmin();
+                loadAdminData();
+            } else {
+                document.getElementById('admin-main-dash').classList.add('hidden');
+                document.getElementById('admin-login-screen').classList.remove('hidden');
+            }
+        }
+
         async function handleLogin() {
             const email = sanitizeInput(document.getElementById('adm-email').value).toLowerCase().trim();
             const pass = document.getElementById('adm-pass').value.trim();
@@ -417,6 +449,10 @@
                     }
                     currentActiveUser = user;
 
+                    // حفظ الجلسة لمدة 4 ساعات
+                    const sessionPayload = { data: currentActiveUser, expiry: Date.now() + (4 * 3600 * 1000) };
+                    localStorage.setItem('union_admin_session', JSON.stringify(sessionPayload));
+
                     if (sb) {
                         try {
                             await sb.from('audit_logs').insert([{
@@ -427,18 +463,7 @@
                         } catch(e){}
                     }
 
-                    document.getElementById('adm-welcome-text').innerText = user.role === 'gm' ? "المدير العام" : user.name;
-                    document.getElementById('admin-login-screen').classList.add('hidden');
-                    document.getElementById('admin-main-dash').classList.remove('hidden');
-
-                    if (user.role === 'gm') {
-                        document.getElementById('gm-management-panel').classList.remove('hidden');
-                    } else {
-                        document.getElementById('gm-management-panel').classList.add('hidden');
-                    }
-
-                    initRealtimeAdmin();
-                    loadAdminData();
+                    checkAdminSessionState();
                     showToast("تم تسجيل الدخول الآمن بنجاح", "success");
                 } else {
                     showToast("البريد الإلكتروني أو كلمة المرور غير صحيحة", "error");
@@ -943,12 +968,18 @@
         }
 
         function logoutAdmin() {
+            currentActiveUser = null;
+            localStorage.removeItem('union_admin_session');
             document.getElementById('admin-main-dash').classList.add('hidden');
             document.getElementById('admin-login-screen').classList.remove('hidden');
             document.getElementById('adm-email').value = "gm@union.iq";
             document.getElementById('adm-pass').value = "admin1234";
-            showToast("تم تسجيل الخروج", "info");
+            showToast("تم تسجيل الخروج بأمان", "info");
         }
+
+        window.onload = function() {
+            checkAdminSessionState();
+        };
     </script>
 </body>
 </html>
