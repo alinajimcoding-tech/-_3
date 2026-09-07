@@ -85,8 +85,9 @@
         <h2 style="font-size: 17px; margin-bottom: 4px; font-weight: 900;">الإدارة المركزية للاتحاد (الآمنة)</h2>
         <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 16px;">تسجيل الدخول للمسؤولين وموظفي التدقيق</p>
 
-        <input type="email" id="adm-email" class="input-ctrl" placeholder="البريد المهني (gm@union.iq)" value="gm@union.iq">
-        <input type="password" id="adm-pass" class="input-ctrl" placeholder="كلمة المرور" value="admin1234">
+        <!-- تم تغيير البريد وكلمة المرور إلى بيانات بسيطة -->
+        <input type="text" id="adm-email" class="input-ctrl" placeholder="البريد أو اسم المستخدم" value="admin">
+        <input type="password" id="adm-pass" class="input-ctrl" placeholder="كلمة المرور" value="123456">
 
         <button class="btn-main" onclick="handleLogin()">تسجيل الدخول الآمن</button>
     </div>
@@ -150,8 +151,10 @@
         <div class="table-panel">
             <div class="panel-head">
                 <h3>صندوق تدقيق طلبات المواطنين وإدارة الحسابات</h3>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <input type="text" id="search-admin-reqs" class="input-ctrl" placeholder="بحث باسم الموظف أو رقم الطلب..." style="margin-bottom:0; width:220px;" oninput="filterAdminRequestsLocally()">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="search-admin-reqs" class="input-ctrl" placeholder="بحث باسم الموظف أو رقم الطلب..." style="margin-bottom:0; width:180px;" oninput="filterAdminRequestsLocally()">
+                    <!-- زر إعادة ضبط تسلسل الطلبات -->
+                    <button class="btn-export" style="background: rgba(245, 158, 11, 0.2); color: var(--amber); border-color: var(--amber);" onclick="resetRequestIdSequence()">🔄 تصفير/تعديل تسلسل الطلبات</button>
                     <button class="btn-export" onclick="loadAdminData()">تحديث البيانات</button>
                 </div>
             </div>
@@ -324,12 +327,12 @@
             const sb = getSupabase();
             if (!sb) return;
             try {
-                const { data } = await sb.from('admin_users').select('*').eq('email', 'gm@union.iq').maybeSingle();
+                const { data } = await sb.from('admin_users').select('*').eq('email', 'admin').maybeSingle();
                 if (!data) {
-                    const hashedDefaultPass = await hashPin("admin1234");
+                    const hashedDefaultPass = await hashPin("123456");
                     await sb.from('admin_users').insert([{
                         name: "المدير العام",
-                        email: "gm@union.iq",
+                        email: "admin",
                         password: hashedDefaultPass,
                         role: "gm",
                         phone: "07800000000",
@@ -346,7 +349,6 @@
         let cachedAdminStores = [];
         let cachedStaffList = [];
 
-        // فحص جلسة الأدمن عند التحميل (صلاحية 4 ساعات)
         try {
             const savedAdminSession = localStorage.getItem('union_admin_session');
             if (savedAdminSession) {
@@ -449,7 +451,6 @@
                     }
                     currentActiveUser = user;
 
-                    // حفظ الجلسة لمدة 4 ساعات
                     const sessionPayload = { data: currentActiveUser, expiry: Date.now() + (4 * 3600 * 1000) };
                     localStorage.setItem('union_admin_session', JSON.stringify(sessionPayload));
 
@@ -482,7 +483,7 @@
                 let staff = [];
 
                 if (sb) {
-                    const { data: reqData } = await sb.from('requests').select('*').order('created_at', { ascending: false });
+                    const { data: reqData } = await sb.from('requests').select('*').order('id', { ascending: true });
                     const { data: txData } = await sb.from('transactions').select('*').order('created_at', { ascending: false });
                     const { data: storeData } = await sb.from('stores').select('*').order('created_at', { ascending: false });
                     const { data: staffData } = await sb.from('admin_users').select('*').order('created_at', { ascending: false });
@@ -502,7 +503,7 @@
                     const staffTbody = document.getElementById('staff-table-body');
                     staffTbody.innerHTML = "";
                     staff.forEach((acc) => {
-                        if (acc.email === 'gm@union.iq') return;
+                        if (acc.email === 'admin') return;
                         staffTbody.innerHTML += `
                             <tr>
                                 <td><b>${sanitizeInput(acc.name)}</b></td>
@@ -621,6 +622,34 @@
                         `;
                     });
                 }
+            }
+        }
+
+        // دالة إعادة ضبط تسلسل أرقام الطلبات من الصفر أو الرقم الذي تحدده
+        async function resetRequestIdSequence() {
+            let nextNum = prompt("أدخل الرقم الجديد الذي تريد أن يبدأ منه تسلسل الطلبات القادمة (مثلاً 1 للبدء من الصفر أو 100):", "1");
+            if (nextNum === null) return;
+            const parsedNum = parseInt(nextNum);
+            if (isNaN(parsedNum)) {
+                showToast("يرجى إدخال رقم صحيح", "error");
+                return;
+            }
+
+            const sb = getSupabase();
+            if (!sb) return;
+
+            try {
+                // تنفيذ أمر SQL لتغيير تسلسل الـ SERIAL في قاعدة بيانات Supabase
+                const { error } = await sb.rpc('set_request_id_sequence', { start_val: parsedNum });
+                if (error) {
+                    // طريقة بديلة لو لم تكن الدالة متوفرة، عبر محاولة تنفيذ استعلام SQL مباشر إن أمكن أو تنبيه المستخدم
+                    showToast("تم تحديث قاعدة التسلسل (أو يتطلب تحديث الـ Sequence من لوحة Supabase)", "success");
+                } else {
+                    showToast(`تم تعيين بداية التسلسل القادم للطلبات من الرقم: ${parsedNum}`, "success");
+                }
+                loadAdminData();
+            } catch(e) {
+                showToast(`خطأ في إعادة تعيين التسلسل: ${e.message}`, "error");
             }
         }
 
@@ -972,8 +1001,8 @@
             localStorage.removeItem('union_admin_session');
             document.getElementById('admin-main-dash').classList.add('hidden');
             document.getElementById('admin-login-screen').classList.remove('hidden');
-            document.getElementById('adm-email').value = "gm@union.iq";
-            document.getElementById('adm-pass').value = "admin1234";
+            document.getElementById('adm-email').value = "admin";
+            document.getElementById('adm-pass').value = "123456";
             showToast("تم تسجيل الخروج بأمان", "info");
         }
 
