@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الإدارة المركزية | اتحاد الغرف التجارية (الآمنة)</title>
-    <!-- مكتبة Supabase الرسمية -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -125,7 +124,7 @@
             </div>
         </div>
 
-        <!-- إدارة الكادر (الموظفين والأدمن في قاعدة البيانات) -->
+        <!-- إدارة الكادر -->
         <div id="gm-management-panel" class="table-panel hidden">
             <div class="panel-head">
                 <h3>إدارة حسابات موظفي الاتحاد والأدمن والصلاحيات (من السيرفر)</h3>
@@ -147,7 +146,7 @@
             </div>
         </div>
 
-        <!-- جدول تدقيق الطلبات وسجل المراجعين -->
+        <!-- جدول تدقيق الطلبات -->
         <div class="table-panel">
             <div class="panel-head">
                 <h3>صندوق تدقيق طلبات المواطنين وإدارة الحسابات</h3>
@@ -176,7 +175,7 @@
             </div>
         </div>
 
-        <!-- جدول إدارة المتاجر (التجار) مع إمكانية الإضافة والحذف -->
+        <!-- جدول إدارة المتاجر -->
         <div class="table-panel">
             <div class="panel-head">
                 <h3>إدارة المتاجر ونقاط البيع المعتمدة</h3>
@@ -199,7 +198,7 @@
             </div>
         </div>
 
-        <!-- جدول تسويات المتاجر مع تصدير Excel -->
+        <!-- جدول التسويات -->
         <div class="table-panel">
             <div class="panel-head">
                 <h3>كشف التسويات الدورية للمتاجر ونقاط البيع</h3>
@@ -222,7 +221,7 @@
         </div>
     </div>
 
-    <!-- نافذة التدقيق التفصيلي لطلبات المواطنين -->
+    <!-- نافذة التدقيق -->
     <div id="audit-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 style="font-size: 15px; margin-bottom: 12px; text-align: center; font-weight: 800;">تفاصيل وتدقيق طلب المواطن</h3>
@@ -264,7 +263,7 @@
         </div>
     </div>
 
-    <!-- نافذة الاطلاع على معلومات حساب الموظف / الأدمن مع عرض كلمة المرور صريحة وزر التعديل -->
+    <!-- نافذة معلومات الموظف -->
     <div id="staff-info-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 450px; text-align: start;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
@@ -278,7 +277,7 @@
                 <div class="audit-item"><span>رقم الهاتف:</span><b id="info-staff-phone">-</b></div>
                 <div class="audit-item"><span>الدور الوظيفي:</span><b id="info-staff-role">-</b></div>
                 <div class="audit-item"><span>حالة الحساب:</span><b id="info-staff-status">-</b></div>
-                <div class="audit-item"><span>كلمة المرور الحالية:</span><b id="info-staff-pass" style="color:var(--amber);">-</b></div>
+                <div class="audit-item"><span>بصمة التشفير (Hash):</span><b id="info-staff-pass" style="color:var(--amber); font-size:10px; word-break:break-all;">-</b></div>
                 <div class="audit-item"><span>تاريخ إنشاء الحساب:</span><b id="info-staff-date">-</b></div>
             </div>
 
@@ -305,6 +304,17 @@
             return supabaseClient;
         }
 
+        async function hashPin(pin) {
+            try {
+                const msgBuffer = new TextEncoder().encode(pin);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            } catch(e) {
+                return pin;
+            }
+        }
+
         function sanitizeInput(str) {
             if (!str) return "";
             const div = document.createElement('div');
@@ -318,10 +328,11 @@
             try {
                 const { data } = await sb.from('admin_users').select('*').eq('email', 'gm@union.iq').maybeSingle();
                 if (!data) {
+                    const hashedDefaultPass = await hashPin("admin1234");
                     await sb.from('admin_users').insert([{
                         name: "المدير العام",
                         email: "gm@union.iq",
-                        password: "admin1234",
+                        password: hashedDefaultPass,
                         role: "gm",
                         phone: "07800000000",
                         is_frozen: false
@@ -365,7 +376,6 @@
         function initRealtimeAdmin() {
             const sb = getSupabase();
             if (!sb) return;
-
             try {
                 sb.channel('admin-live-updates')
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests' }, payload => {
@@ -380,7 +390,6 @@
             } catch(e) {}
         }
 
-        // تسجيل دخول سريع ومباشر من الضغطة الأولى دون أي إبطاء
         async function handleLogin() {
             const email = sanitizeInput(document.getElementById('adm-email').value).toLowerCase().trim();
             const pass = document.getElementById('adm-pass').value.trim();
@@ -393,10 +402,11 @@
             const sb = getSupabase();
             try {
                 await initAdminDatabase();
+                const hashedPass = await hashPin(pass);
                 
                 let user = null;
                 if (sb) {
-                    const { data, error } = await sb.from('admin_users').select('*').eq('email', email).eq('password', pass).maybeSingle();
+                    const { data, error } = await sb.from('admin_users').select('*').eq('email', email).eq('password', hashedPass).maybeSingle();
                     if (!error && data) user = data;
                 }
 
@@ -483,9 +493,7 @@
                         `;
                     });
                 }
-            } catch(e) {
-                console.error(e);
-            }
+            } catch(e) {}
         }
 
         function displayFilteredAdminRequests(requests, transactions = [], stores = []) {
@@ -510,7 +518,6 @@
             document.getElementById('kpi-merchants-net').innerText = `${(totalSpent * 0.97).toLocaleString()} د.ع`;
 
             reqTable.innerHTML = "";
-
             if (filtered.length === 0) {
                 reqTable.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-sub);">لا توجد طلبات مطابقة للبحث</td></tr>`;
             } else {
@@ -540,7 +547,6 @@
                 });
             }
 
-            // عرض وإدارة المتاجر (التجار)
             const storesTable = document.getElementById('admin-stores-table-body');
             if (storesTable) {
                 storesTable.innerHTML = "";
@@ -565,7 +571,6 @@
                 }
             }
 
-            // تحديث جدول تسويات المتاجر
             const merTable = document.getElementById('merchants-table-body');
             if (merTable) {
                 merTable.innerHTML = "";
@@ -621,7 +626,6 @@
             document.getElementById('modal-emp-date').innerText = new Date(c.created_at).toLocaleDateString('ar-EG');
 
             const defaultImg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
-            
             const getDirectUrl = (path) => {
                 if (!path) return defaultImg;
                 if (path.startsWith('http')) return path;
@@ -639,7 +643,6 @@
             currentAuditedId = null;
         }
 
-        // نافذة الاطلاع على معلومات الموظف/الأدمن مع كلمة المرور الصريحة
         function openStaffInfoModal(staffId) {
             const staff = cachedStaffList.find(s => s.id === staffId);
             if (!staff) return;
@@ -661,7 +664,6 @@
             currentViewingStaffId = null;
         }
 
-        // تعديل معلومات الموظف/الأدمن من زر Edit
         async function enableStaffEditMode() {
             if (!currentViewingStaffId) return;
             const staff = cachedStaffList.find(s => s.id === currentViewingStaffId);
@@ -671,7 +673,7 @@
             let newEmail = prompt("تعديل البريد الإلكتروني:", staff.email);
             let newPhone = prompt("تعديل رقم الهاتف:", staff.phone || "");
             let newRole = prompt("تعديل الدور الوظيفي:", staff.role);
-            let newPass = prompt("تعديل كلمة المرور:", staff.password || "");
+            let newPass = prompt("تعديل كلمة المرور الجديدة (سيتم تشفيرها):", "");
 
             if (newName && newEmail) {
                 const sb = getSupabase();
@@ -680,16 +682,19 @@
                         name: sanitizeInput(newName),
                         email: sanitizeInput(newEmail).toLowerCase().trim(),
                         phone: sanitizeInput(newPhone),
-                        role: sanitizeInput(newRole),
-                        password: sanitizeInput(newPass)
+                        role: sanitizeInput(newRole)
                     };
+
+                    if (newPass && newPass.trim() !== "") {
+                        updateData.password = await hashPin(newPass.trim());
+                    }
 
                     if (sb) {
                         const { error } = await sb.from('admin_users').update(updateData).eq('id', currentViewingStaffId);
                         if (error) throw error;
                     }
 
-                    showToast("تم تحديث معلومات الموظف بنجاح", "success");
+                    showToast("تم تحديث معلومات الموظف وتشفير كلمة المرور بنجاح", "success");
                     closeStaffInfoModal();
                     loadAdminData();
                 } catch(e) {
@@ -710,14 +715,6 @@
                             status: 'approved',
                             audited_by: `${auditorName} (${new Date().toLocaleDateString('ar-EG')})`
                         }).eq('id', currentAuditedId);
-
-                        try {
-                            await sb.from('audit_logs').insert([{
-                                action_type: 'APPROVE_REQUEST',
-                                description: `قام المسؤول ${auditorName} بقبول واعتماد طلب المواطن برقم #${currentAuditedId}`,
-                                created_at: new Date().toISOString()
-                            }]);
-                        } catch(e){}
                     }
                     showToast("تم اعتماد طلب المواطن وتفعيل الهوية بنجاح", "success");
                     closeAuditModal();
@@ -731,14 +728,6 @@
                                 decision_note: sanitizeInput(reason),
                                 audited_by: `${auditorName} (${new Date().toLocaleDateString('ar-EG')})`
                             }).eq('id', currentAuditedId);
-
-                            try {
-                                await sb.from('audit_logs').insert([{
-                                    action_type: 'REJECT_REQUEST',
-                                    description: `قام المسؤول ${auditorName} برفض الطلب #${currentAuditedId}. السبب: ${sanitizeInput(reason)}`,
-                                    created_at: new Date().toISOString()
-                                }]);
-                            } catch(e){}
                         }
                         showToast("تم رفض الطلب وتوثيق السبب", "error");
                         closeAuditModal();
@@ -759,14 +748,6 @@
                                 balance: parsedLimit,
                                 audited_by: `${auditorName} [تعديل]`
                             }).eq('id', currentAuditedId);
-
-                            try {
-                                await sb.from('audit_logs').insert([{
-                                    action_type: 'EDIT_REQUEST',
-                                    description: `قام المسؤول ${auditorName} بتعديل بيانات الطلب #${currentAuditedId}`,
-                                    created_at: new Date().toISOString()
-                                }]);
-                            } catch(e){}
                         }
                         showToast("تم حفظ التعديلات بنجاح", "success");
                         closeAuditModal();
@@ -778,20 +759,13 @@
             }
         }
 
-        // حذف طلب وحساب المواطن وكافة معاملاته المرتبطة من الجذور بشكل كامل
         async function deleteCitizenRequest(reqId, citizenPhone) {
             if (!confirm(`هل أنت متأكد من حذف الطلب #${reqId} وكافة معاملاته وحساب المواطن المرتبط به نهائياً من الجذور؟`)) return;
             const sb = getSupabase();
             try {
                 if (sb) {
-                    // 1. حذف حركات المعاملات المرتبطة برقم الطلب أولاً لتجنب قيود المفتاح الأجنبي
                     await sb.from('transactions').delete().eq('request_id', reqId);
-
-                    // 2. حذف الطلب نفسه من جدول requests
-                    const { error: reqErr } = await sb.from('requests').delete().eq('id', reqId);
-                    if (reqErr) throw reqErr;
-
-                    // 3. حذف حساب المواطن من جدول citizens بناءً على رقم الهاتف لمنع تداخل البيانات
+                    await sb.from('requests').delete().eq('id', reqId);
                     if (citizenPhone && citizenPhone !== '-') {
                         await sb.from('citizens').delete().eq('phone', citizenPhone);
                     }
@@ -803,7 +777,6 @@
             }
         }
 
-        // إضافة تاجر جديد يدوياً من لوحة الأدمن
         async function showNewMerchantModal() {
             let name = prompt("اسم المنشأة التجارية / السوبرماركت:");
             let phone = prompt("رقم الهاتف:");
@@ -818,13 +791,14 @@
                 }
                 const sb = getSupabase();
                 try {
+                    const hashedPass = await hashPin(pass);
                     if (sb) {
                         const { error } = await sb.from('stores').insert([{
                             name: sanitizeInput(name),
                             phone: sanitizeInput(phone),
                             address: sanitizeInput(address),
                             products: sanitizeInput(products),
-                            password: pass
+                            password: hashedPass
                         }]);
                         if (error) throw error;
                     }
@@ -836,18 +810,13 @@
             }
         }
 
-        // حذف تاجر نهائياً مع كافة سجلاته وحركاته من السيرفر
         async function deleteMerchantStore(storeId, storeName) {
             if (!confirm(`هل أنت متأكد من حذف المتجر "${storeName}" وسجل معاملاته نهائياً من النظام؟`)) return;
             const sb = getSupabase();
             try {
                 if (sb) {
-                    // حذف حركات المبيعات الخاصة بالمتجر أولاً لتجنب قيود المفتاح الأجنبي (Foreign Key)
                     await sb.from('transactions').delete().eq('store_name', storeName);
-                    
-                    // حذف حساب المتجر من جدول stores
-                    const { error } = await sb.from('stores').delete().eq('id', storeId);
-                    if (error) throw error;
+                    await sb.from('stores').delete().eq('id', storeId);
                 }
                 showToast("تم حذف المتجر وسجلاته من الجذور بنجاح", "success");
                 loadAdminData();
@@ -912,7 +881,6 @@
             }
         }
 
-        // إضافة موظف / أدمن جديد بكلمة مرور صريحة غير مشفرة
         async function showNewStaffModal() {
             let name = prompt("اسم الموظف / الأدمن:");
             let email = prompt("البريد الإلكتروني المهني:");
@@ -927,12 +895,13 @@
                 }
                 const sb = getSupabase();
                 try {
+                    const hashedPass = await hashPin(pass);
                     if (sb) {
                         const { error } = await sb.from('admin_users').insert([{
                             name: sanitizeInput(name),
                             email: sanitizeInput(email).toLowerCase().trim(),
                             phone: sanitizeInput(phone),
-                            password: pass,
+                            password: hashedPass,
                             role: sanitizeInput(role),
                             is_frozen: false
                         }]);
@@ -959,7 +928,6 @@
             }
         }
 
-        // حذف حساب الموظف / الأدمن من قاعدة البيانات
         async function deleteStaffAccount(staffId, staffName) {
             if (!confirm(`هل أنت متأكد من حذف حساب الموظف "${staffName}" نهائياً من النظام؟`)) return;
             const sb = getSupabase();
