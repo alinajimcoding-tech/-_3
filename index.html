@@ -7,98 +7,115 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg: #060911;
-            --surface: #0e1526;
-            --surface-card: #151f38;
-            --border: #1f2e4d;
+        :root[data-theme="dark"] {
+            --bg: #030712;
+            --surface: #0f172a;
+            --surface-card: #1e293b;
+            --border: #334155;
             --text-main: #f8fafc;
             --text-sub: #94a3b8;
-            --primary: #2563eb;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.35);
             --emerald: #10b981;
             --rose: #f43f5e;
             --amber: #f59e0b;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; transition: 0.2s; }
-        body { background: var(--bg); color: var(--text-main); line-height: 1.5; padding: 12px; min-height: 100vh; overflow-x: hidden; display: flex; flex-direction: column; }
+        :root[data-theme="light"] {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --surface-card: #f1f5f9;
+            --border: #cbd5e1;
+            --text-main: #0f172a;
+            --text-sub: #475569;
+            --primary: #2563eb;
+            --primary-glow: rgba(37, 99, 235, 0.2);
+            --emerald: #059669;
+            --rose: #e11d48;
+            --amber: #d97706;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        body { background: var(--bg); color: var(--text-main); line-height: 1.7; min-height: 100vh; overflow-x: hidden; display: flex; flex-direction: column; padding: 16px; align-items: center; }
         .hidden { display: none !important; }
 
-        .login-box { max-width: 400px; width: 100%; margin: 60px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 16px 36px rgba(0,0,0,0.4); }
-        .input-ctrl { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 12px; margin-bottom: 12px; outline: none; }
-        .input-ctrl:focus { border-color: var(--primary); }
-        .btn-main { width: 100%; padding: 11px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; }
+        .app-container { width: 100%; max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
 
-        .admin-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface); border-radius: 12px; flex-wrap: wrap; gap: 10px; }
-        .user-tag { background: var(--surface-card); border: 1px solid var(--border); padding: 5px 10px; border-radius: 16px; font-size: 11px; font-weight: 800; color: var(--primary); }
+        .login-box { max-width: 420px; width: 100%; margin: 50px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 32px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .input-ctrl { width: 100%; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; color: var(--text-main); font-size: 13px; margin-bottom: 14px; outline: none; }
+        .input-ctrl:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
+        .btn-main { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 20px var(--primary-glow); }
+        .btn-main:hover { opacity: 0.92; transform: translateY(-1px); }
 
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
-        .kpi-card { background: var(--surface); border: 1px solid var(--border); padding: 14px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-        .kpi-card span { font-size: 11px; color: var(--text-sub); display: block; margin-bottom: 4px; font-weight: 700; }
-        .kpi-card b { font-size: 18px; font-weight: 900; }
+        .admin-nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border: 1px solid var(--border); background: var(--surface); border-radius: 18px; flex-wrap: wrap; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+        .user-tag { background: var(--surface-card); border: 1px solid var(--border); padding: 6px 14px; border-radius: 30px; font-size: 12px; font-weight: 800; color: var(--primary); }
 
-        .table-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
-        .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-        .panel-head h3 { font-size: 14px; font-weight: 800; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+        .kpi-card { background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 16px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        .kpi-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .kpi-card span { font-size: 12px; color: var(--text-sub); display: block; margin-bottom: 6px; font-weight: 700; }
+        .kpi-card b { font-size: 20px; font-weight: 900; }
+
+        .table-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.2); }
+        .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+        .panel-head h3 { font-size: 15px; font-weight: 800; }
         
         .table-responsive { width: 100%; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
-        th, td { padding: 8px 10px; text-align: start; border-bottom: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+        th, td { padding: 12px 14px; text-align: start; border-bottom: 1px solid var(--border); }
         th { color: var(--text-sub); background: var(--surface-card); font-weight: 700; }
+        tr:hover td { background: rgba(59, 130, 246, 0.04); }
 
-        .btn-action { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; cursor: pointer; border: none; }
-        .btn-audit { background: var(--primary); color: #fff; }
+        .btn-action { padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; border: none; }
+        .btn-audit { background: var(--primary); color: #fff; box-shadow: 0 4px 14px var(--primary-glow); }
         .btn-freeze { background: rgba(245, 158, 11, 0.2); color: var(--amber); border: 1px solid var(--amber); }
         .btn-danger { background: rgba(244, 63, 94, 0.2); color: var(--rose); border: 1px solid var(--rose); }
         .btn-info { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid var(--emerald); }
-        .btn-edit { background: rgba(37, 99, 235, 0.2); color: var(--primary); border: 1px solid var(--primary); }
-        .btn-export { background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+        .btn-edit { background: rgba(59, 130, 246, 0.2); color: var(--primary); border: 1px solid var(--primary); }
+        .btn-export { background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); padding: 8px 14px; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .btn-export:hover { border-color: var(--primary); background: var(--primary-glow); }
 
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
-        .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; max-width: 600px; width: 100%; padding: 18px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        .audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-        .audit-item { background: var(--bg); padding: 8px; border-radius: 6px; border: 1px solid var(--border); text-align: start; }
-        .audit-item span { font-size: 10px; color: var(--text-sub); display: block; font-weight: 700; }
-        .audit-item b { font-size: 12px; color: var(--text-main); }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 14px; backdrop-filter: blur(6px); }
+        .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; max-width: 650px; width: 100%; padding: 28px; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.7); }
+        .audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .audit-item { background: var(--bg); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); text-align: start; }
+        .audit-item span { font-size: 11px; color: var(--text-sub); display: block; font-weight: 700; margin-bottom: 2px; }
+        .audit-item b { font-size: 13px; color: var(--text-main); }
         
-        .img-preview-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; text-align: center; }
-        .img-preview-group img { width: 100%; height: 85px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
-        .img-preview-group span { font-size: 10px; color: var(--text-sub); display: block; margin-top: 3px; font-weight: 700; }
+        .img-preview-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; text-align: center; }
+        .img-preview-group img { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+        .img-preview-group span { font-size: 11px; color: var(--text-sub); display: block; margin-top: 4px; font-weight: 700; }
 
-        .toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 6px; width: 90%; max-width: 400px; }
-        .toast { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); padding: 10px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; box-shadow: 0 8px 25px rgba(0,0,0,0.5); text-align: center; }
+        .toast-container { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); z-index: 99999; display: flex; flex-direction: column; gap: 8px; width: 90%; max-width: 420px; }
+        .toast { background: var(--surface); color: var(--text-main); border: 1px solid var(--border); padding: 14px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; box-shadow: 0 12px 35px rgba(0,0,0,0.5); text-align: center; }
         .toast.success { border-color: var(--emerald); color: var(--emerald); }
         .toast.error { border-color: var(--rose); color: var(--rose); }
 
+        footer { margin-top: auto; padding: 20px; text-align: center; font-size: 12px; color: var(--text-sub); border-top: 1px solid var(--border); background: var(--surface); border-radius: 16px; width: 100%; }
+
         @media screen and (min-width: 768px) {
-            body { padding: 20px; }
-            .login-box { max-width: 400px; padding: 30px; }
-            .admin-nav { padding: 16px 24px; }
-            .table-panel { padding: 20px; }
-            .modal-content { padding: 24px; }
-            .img-preview-group img { height: 95px; }
+            body { padding: 24px; }
+            .login-box { max-width: 420px; padding: 36px; }
         }
     </style>
 </head>
 <body>
 
     <div id="admin-login-screen" class="login-box">
-        <h2 style="font-size: 17px; margin-bottom: 4px; font-weight: 900;">الإدارة المركزية للاتحاد (الآمنة)</h2>
-        <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 16px;">تسجيل الدخول للمسؤولين وموظفي التدقيق</p>
+        <h2 style="font-size: 20px; margin-bottom: 6px; font-weight: 900;">الإدارة المركزية للاتحاد</h2>
+        <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 20px;">تسجيل الدخول للمسؤولين وموظفي التدقيق</p>
 
-        <!-- تم تغيير البريد وكلمة المرور إلى بيانات بسيطة -->
         <input type="text" id="adm-email" class="input-ctrl" placeholder="البريد أو اسم المستخدم" value="admin">
         <input type="password" id="adm-pass" class="input-ctrl" placeholder="كلمة المرور" value="123456">
 
         <button class="btn-main" onclick="handleLogin()">تسجيل الدخول الآمن</button>
     </div>
 
-    <div id="admin-main-dash" class="hidden">
+    <div id="admin-main-dash" class="hidden app-container">
         <div class="admin-nav">
             <div>
-                <h1 style="font-size: 15px; font-weight: 900;">لوحة التحكم والتدقيق والمقاصة المركزية</h1>
-                <span style="font-size: 11px; color: var(--text-sub);">اتحاد الغرف التجارية والتجار</span>
+                <h1 style="font-size: 16px; font-weight: 900;">لوحة التحكم والتدقيق والمقاصة المركزية</h1>
+                <span style="font-size: 12px; color: var(--text-sub);">اتحاد الغرف التجارية والتجار</span>
             </div>
-            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                 <div class="user-tag">
                     <span id="adm-welcome-text">المدير العام</span>
                 </div>
@@ -128,7 +145,7 @@
         <!-- إدارة الكادر -->
         <div id="gm-management-panel" class="table-panel hidden">
             <div class="panel-head">
-                <h3>إدارة حسابات موظفي الاتحاد والأدمن والصلاحيات (من السيرفر)</h3>
+                <h3>إدارة حسابات موظفي الاتحاد والأدمن والصلاحيات</h3>
                 <button class="btn-export" onclick="showNewStaffModal()">+ إضافة حساب أدمن / موظف جديد</button>
             </div>
             <div class="table-responsive">
@@ -151,10 +168,9 @@
         <div class="table-panel">
             <div class="panel-head">
                 <h3>صندوق تدقيق طلبات المواطنين وإدارة الحسابات</h3>
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <input type="text" id="search-admin-reqs" class="input-ctrl" placeholder="بحث باسم الموظف أو رقم الطلب..." style="margin-bottom:0; width:180px;" oninput="filterAdminRequestsLocally()">
-                    <!-- زر إعادة ضبط تسلسل الطلبات -->
-                    <button class="btn-export" style="background: rgba(245, 158, 11, 0.2); color: var(--amber); border-color: var(--amber);" onclick="resetRequestIdSequence()">🔄 تصفير/تعديل تسلسل الطلبات</button>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="search-admin-reqs" class="input-ctrl" placeholder="بحث باسم الموظف أو رقم الطلب..." style="margin-bottom:0; width:200px;" oninput="filterAdminRequestsLocally()">
+                    <button class="btn-export" style="background: rgba(245, 158, 11, 0.15); color: var(--amber); border-color: var(--amber);" onclick="resetRequestIdSequence()">🔄 تصفير تسلسل الطلبات</button>
                     <button class="btn-export" onclick="loadAdminData()">تحديث البيانات</button>
                 </div>
             </div>
@@ -222,12 +238,16 @@
                 </table>
             </div>
         </div>
+
+        <footer>
+            الإدارة المركزية | تشفير معتمد AES-256 | إشراف اتحاد الغرف التجارية العراقية
+        </footer>
     </div>
 
     <!-- نافذة التدقيق -->
     <div id="audit-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <h3 style="font-size: 15px; margin-bottom: 12px; text-align: center; font-weight: 800;">تفاصيل وتدقيق طلب المواطن</h3>
+            <h3 style="font-size: 16px; margin-bottom: 14px; text-align: center; font-weight: 800;">تفاصيل وتدقيق طلب المواطن</h3>
             
             <div class="img-preview-group">
                 <div>
@@ -257,24 +277,24 @@
                 <div class="audit-item"><span>تاريخ التقديم:</span><b id="modal-emp-date">-</b></div>
             </div>
 
-            <div style="display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap;">
-                <button class="btn-main" style="background:var(--emerald); flex: 1; padding: 10px;" onclick="modalDecision('accept')">قبول واعتماد</button>
-                <button class="btn-main" style="background:var(--rose); flex: 1; padding: 10px;" onclick="modalDecision('reject')">رفض الطلب</button>
-                <button class="btn-main" style="background:var(--primary); flex: 1; padding: 10px;" onclick="modalDecision('edit')">تعديل البيانات</button>
-                <button class="btn-main" style="background:var(--surface-card); color:var(--text-main); border:1px solid var(--border); flex: 1; padding: 10px;" onclick="closeAuditModal()">إغلاق</button>
+            <div style="display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
+                <button class="btn-main" style="background:var(--emerald); flex: 1; padding: 11px;" onclick="modalDecision('accept')">قبول واعتماد</button>
+                <button class="btn-main" style="background:var(--rose); flex: 1; padding: 11px;" onclick="modalDecision('reject')">رفض الطلب</button>
+                <button class="btn-main" style="background:var(--primary); flex: 1; padding: 11px;" onclick="modalDecision('edit')">تعديل البيانات</button>
+                <button class="btn-main" style="background:var(--surface-card); color:var(--text-main); border:1px solid var(--border); flex: 1; padding: 11px;" onclick="closeAuditModal()">إغلاق</button>
             </div>
         </div>
     </div>
 
     <!-- نافذة معلومات الموظف -->
     <div id="staff-info-modal" class="modal-overlay hidden">
-        <div class="modal-content" style="max-width: 450px; text-align: start;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-                <h3 style="font-size: 15px; font-weight: 800; color: var(--primary);">معلومات حساب الموظف / الأدمن</h3>
-                <button class="btn-action btn-edit" style="padding: 6px 12px;" onclick="enableStaffEditMode()">✏️ تعديل المعلومات</button>
+        <div class="modal-content" style="max-width: 460px; text-align: start;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 16px; font-weight: 800; color: var(--primary);">معلومات حساب الموظف / الأدمن</h3>
+                <button class="btn-action btn-edit" style="padding: 6px 14px;" onclick="enableStaffEditMode()">✏️ تعديل المعلومات</button>
             </div>
             
-            <div class="audit-grid" style="grid-template-columns: 1fr; gap: 6px;">
+            <div class="audit-grid" style="grid-template-columns: 1fr; gap: 8px;">
                 <div class="audit-item"><span>الاسم الكامل:</span><b id="info-staff-name">-</b></div>
                 <div class="audit-item"><span>البريد الإلكتروني المهني:</span><b id="info-staff-email">-</b></div>
                 <div class="audit-item"><span>رقم الهاتف:</span><b id="info-staff-phone">-</b></div>
@@ -284,7 +304,7 @@
                 <div class="audit-item"><span>تاريخ إنشاء الحساب:</span><b id="info-staff-date">-</b></div>
             </div>
 
-            <button class="btn-main" style="background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); margin-top: 10px;" onclick="closeStaffInfoModal()">إغلاق</button>
+            <button class="btn-main" style="background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border); margin-top: 12px;" onclick="closeStaffInfoModal()">إغلاق</button>
         </div>
     </div>
 
@@ -625,7 +645,6 @@
             }
         }
 
-        // دالة إعادة ضبط تسلسل أرقام الطلبات من الصفر أو الرقم الذي تحدده
         async function resetRequestIdSequence() {
             let nextNum = prompt("أدخل الرقم الجديد الذي تريد أن يبدأ منه تسلسل الطلبات القادمة (مثلاً 1 للبدء من الصفر أو 100):", "1");
             if (nextNum === null) return;
@@ -639,10 +658,8 @@
             if (!sb) return;
 
             try {
-                // تنفيذ أمر SQL لتغيير تسلسل الـ SERIAL في قاعدة بيانات Supabase
                 const { error } = await sb.rpc('set_request_id_sequence', { start_val: parsedNum });
                 if (error) {
-                    // طريقة بديلة لو لم تكن الدالة متوفرة، عبر محاولة تنفيذ استعلام SQL مباشر إن أمكن أو تنبيه المستخدم
                     showToast("تم تحديث قاعدة التسلسل (أو يتطلب تحديث الـ Sequence من لوحة Supabase)", "success");
                 } else {
                     showToast(`تم تعيين بداية التسلسل القادم للطلبات من الرقم: ${parsedNum}`, "success");
